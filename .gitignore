@@ -1,0 +1,15 @@
+node_modules/
+.env
+*.log
+dist/
+build/
+
+# React Native
+Apps/*/android/app/build/
+Apps/*/ios/Pods/
+Apps/*/ios/build/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store

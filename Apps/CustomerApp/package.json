@@ -1,0 +1,45 @@
+{
+  "name": "CustomerApp",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "test": "jest",
+    "web": "vite",
+    "web:build": "vite build"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.0",
+    "@react-navigation/bottom-tabs": "^7.2.0",
+    "@react-navigation/native": "^7.0.14",
+    "@react-navigation/native-stack": "^7.2.0",
+    "lucide-react": "^0.468.0",
+    "lucide-react-native": "^0.468.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-native": "0.79.0",
+    "react-native-gesture-handler": "^2.24.0",
+    "react-native-safe-area-context": "^5.4.0",
+    "react-native-screens": "^4.10.0",
+    "react-native-svg": "^15.11.0",
+    "react-native-web": "^0.20.0",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "^18.0.0",
+    "@react-native/babel-preset": "0.79.0",
+    "@react-native/metro-config": "0.79.0",
+    "@react-native/typescript-config": "0.79.0",
+    "@types/react": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jest": "^29.6.3",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-babel": "^1.3.0"
+  }
+}
