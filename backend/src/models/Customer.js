@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-const schema = new Schema({
-  userId: { type: Schema.Types.ObjectId, ref: 'User' }, name: String, phone: String,
+const schema = new mongoose.Schema({
+  name: { type: String, required: true },
+  phone: { type: String, required: true, unique: true }, // login id
+  email: String,
+  passwordHash: { type: String, required: true, select: false },
+  active: { type: Boolean, default: true },
   addresses: [{ label: String, line: String, city: String, lat: Number, lng: Number }],
 }, { timestamps: true });
 

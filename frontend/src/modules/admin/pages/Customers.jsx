@@ -1,5 +1,19 @@
-import PagePlaceholder from '@/shared/components/PagePlaceholder.jsx';
+import ResourcePage from '@/shared/components/ResourcePage';
+import { fmtDate } from '@/shared/lib/format';
 
 export default function Customers() {
-  return <PagePlaceholder title="Customers" />;
+  return (
+    <ResourcePage
+      eyebrow="Onboarding"
+      title="Customers"
+      endpoint="/customers"
+      columns={[
+        { key: 'name', label: 'Customer' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'addressCount', label: 'Saved addresses' },
+        { key: 'requests', label: 'Service requests' },
+        { key: 'createdAt', label: 'Joined', render: (r) => fmtDate(r.createdAt), csv: (r) => fmtDate(r.createdAt) },
+      ]}
+    />
+  );
 }

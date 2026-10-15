@@ -1,7 +1,10 @@
 const router = require('express').Router();
-const { protect } = require('../middleware/auth.middleware');
+const ctrl = require('../controllers/customer.controller');
+const { protect, allow } = require('../middleware/auth.middleware');
 
 router.use(protect);
-router.get('/', (req, res) => res.json({ module: 'customer', items: [] })); // TODO
+router.get('/me', allow('customer'), ctrl.me);
+router.patch('/me', allow('customer'), ctrl.updateMe);
+router.get('/', allow('admin'), ctrl.list);
 
 module.exports = router;

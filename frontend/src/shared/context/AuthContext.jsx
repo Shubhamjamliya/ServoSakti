@@ -1,24 +1,43 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { clearSession, getSession, roleFromPath, setSession } from '../constants/authRoles.js';
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
+/** `user` is the signed-in account for the portal in the URL; other portals' sessions are left alone. */
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('sf_user') || 'null'));
+  const { pathname } = useLocation();
+  const role = roleFromPath(pathname);
+  const [, bump] = useState(0);
+  const user = getSession(role).user;
 
-  const login = async (phone, password) => {
-    const { token, user } = await api('/auth/login', { method: 'POST', body: { phone, password } });
-    localStorage.setItem('sf_token', token);
-    localStorage.setItem('sf_user', JSON.stringify(user));
-    setUser(user);
-    return user;
-  };
-  const logout = () => {
-    localStorage.removeItem('sf_token');
-    localStorage.removeItem('sf_user');
-    setUser(null);
-  };
+  // Another tab logging in/out of this same portal changes storage; re-render to match.
+  useEffect(() => {
+    const onStorage = (e) => { if (e.key?.endsWith(`_${role}`)) bump((n) => n + 1); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [role]);
 
-  return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>;
+  const login = useCallback(async (loginRole, credentials) => {
+    const { token, user: u } = await api('/auth/login', { method: 'POST', body: { role: loginRole, ...credentials } });
+    setSession(loginRole, token, u);
+    bump((n) => n + 1);
+    return u;
+  }, []);
+
+  const verifyOtp = useCallback(async (loginRole, phone, otp) => {
+    const { token, user: u } = await api('/auth/verify-otp', { method: 'POST', body: { role: loginRole, phone, otp } });
+    setSession(loginRole, token, u);
+    bump((n) => n + 1);
+    return u;
+  }, []);
+
+  const logout = useCallback(() => {
+    clearSession(role);
+    bump((n) => n + 1);
+  }, [role]);
+
+  return <AuthContext.Provider value={{ user, login, verifyOtp, logout }}>{children}</AuthContext.Provider>;
 }

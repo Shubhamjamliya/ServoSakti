@@ -1,9 +1,10 @@
 import { Navigate, NavLink, Outlet } from 'react-router-dom';
+import { loginPath } from '../constants/authRoles.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function MobileLayout({ title, base, role, tabs }) {
   const { user, logout } = useAuth();
-  if (user?.role !== role) return <Navigate to="/login" replace />;
+  if (user?.role !== role) return <Navigate to={loginPath(role)} replace />;
   return (
     <div className="min-h-screen bg-slate-200 flex justify-center">
       <div className="w-full max-w-md bg-white min-h-screen flex flex-col shadow-xl relative">

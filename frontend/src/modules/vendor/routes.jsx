@@ -1,5 +1,5 @@
-import { Navigate, Route } from 'react-router-dom';
-import PanelLayout from '@/shared/layout/PanelLayout.jsx';
+import { Route } from 'react-router-dom';
+import AppLayout from '@/shared/layout/AppLayout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Profile from './pages/Profile.jsx';
 import Engineers from './pages/Engineers.jsx';
@@ -10,22 +10,9 @@ import Earnings from './pages/Earnings.jsx';
 import Disputes from './pages/Disputes.jsx';
 import Reports from './pages/Reports.jsx';
 
-const links = [
-  ['dashboard', 'Dashboard'],
-  ['profile', 'Profile'],
-  ['engineers', 'Engineers'],
-  ['local-calls', 'Local Calls'],
-  ['outside-requests', 'Outside Requests'],
-  ['tracking', 'Tracking'],
-  ['earnings', 'Earnings'],
-  ['disputes', 'Disputes'],
-  ['reports', 'Reports'],
-];
-
 export const vendorRoutes = (
-  <Route path="/vendor" element={<PanelLayout title="Service Company Panel" base="/vendor" role="vendor_owner" links={links} />}>
-    <Route index element={<Navigate to="dashboard" replace />} />
-    <Route path="dashboard" element={<Dashboard />} />
+  <Route path="/vendor" element={<AppLayout panel="vendor" />}>
+    <Route index element={<Dashboard />} />
     <Route path="profile" element={<Profile />} />
     <Route path="engineers" element={<Engineers />} />
     <Route path="local-calls" element={<LocalCalls />} />

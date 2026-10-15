@@ -1,3 +1,3 @@
-module.exports = async function dispatchTimeouts(io) {
-  // TODO
-};
+const { expireOffers } = require('../services/dispatch.service');
+
+module.exports = () => expireOffers();
