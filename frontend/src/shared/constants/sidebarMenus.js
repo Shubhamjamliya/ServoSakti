@@ -72,6 +72,7 @@ export const sidebarMenus = {
       link('Incentives', 'Zap', '/admin/incentives'),
     ]),
     section('Insights', [link('MIS Reports', 'BarChart3', '/admin/mis')]),
+    section('Communication', [link('Broadcast', 'Megaphone', '/admin/broadcast')]),
     section('System', [
       link('Business Setup', 'Briefcase', '/admin/business-setup'),
       link('Settings', 'Settings', '/admin/settings'),

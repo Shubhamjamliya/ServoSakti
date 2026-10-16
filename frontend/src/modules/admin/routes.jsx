@@ -15,6 +15,7 @@ import Incentives from './pages/Incentives.jsx';
 import Mis from './pages/Mis.jsx';
 import Settings from './pages/Settings.jsx';
 import BusinessSetup from './pages/BusinessSetup.jsx';
+import Broadcast from './pages/Broadcast.jsx';
 import DeveloperSettings from './pages/DeveloperSettings.jsx';
 
 export const adminRoutes = (
@@ -38,6 +39,7 @@ export const adminRoutes = (
     <Route path="settlements" element={<Settlements />} />
     <Route path="incentives" element={<Incentives />} />
     <Route path="mis" element={<Mis />} />
+    <Route path="broadcast" element={<Broadcast />} />
     <Route path="settings" element={<Settings />} />
     <Route path="business-setup" element={<BusinessSetup />} />
     <Route path="developer" element={<DeveloperSettings />} />

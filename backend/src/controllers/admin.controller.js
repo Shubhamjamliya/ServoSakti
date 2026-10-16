@@ -1,13 +1,14 @@
-const { Oem, Vendor, Engineer, Customer } = require('../models/accounts');
+const { Oem, Vendor, Engineer, Customer, MODEL_BY_ROLE } = require('../models/accounts');
+const Broadcast = require('../models/Broadcast');
 const ServiceRequest = require('../models/ServiceRequest');
 const FieldReport = require('../models/FieldReport');
 const Payout = require('../models/Payout');
 const Dispute = require('../models/Dispute');
 const Setting = require('../models/Setting');
 const AuditLog = require('../models/AuditLog');
-const { asyncHandler, paginate } = require('../utils/helpers');
+const { asyncHandler, paginate, ApiError } = require('../utils/helpers');
 const { buildStats } = require('./serviceRequest.controller');
-const { audit } = require('../services/realtime');
+const { audit, notify } = require('../services/realtime');
 
 exports.dashboard = asyncHandler(async (req, res) => {
   const [stats, oems, vendors, engineers, customers, pendingOems, pendingVendors, pendingEngineers, openDisputes, unassigned, money] = await Promise.all([
@@ -115,4 +116,25 @@ exports.updateSettings = asyncHandler(async (req, res) => {
 
 exports.auditLogs = asyncHandler(async (req, res) => {
   res.json(await paginate(AuditLog, {}, req, { search: ['action', 'entity'], filters: ['entity'], sort: { createdAt: -1 } }));
+});
+
+// ---- Broadcast: in-app notification + push (mobile apps and web) to a whole audience ----
+exports.broadcast = asyncHandler(async (req, res) => {
+  const title = String(req.body.title || '').trim();
+  const message = String(req.body.message || '').trim();
+  const audience = req.body.audience || 'all';
+  if (!title || !message) throw new ApiError(400, 'title and message are required');
+  if (audience !== 'all' && !MODEL_BY_ROLE[audience]) throw new ApiError(400, 'Invalid audience');
+
+  const roles = audience === 'all' ? Object.keys(MODEL_BY_ROLE) : [audience];
+  const found = await Promise.all(roles.map((r) => MODEL_BY_ROLE[r].find({ active: { $ne: false } }).select('_id').lean()));
+  const ids = found.flat().map((a) => a._id);
+  await notify(ids, title, message, 'broadcast');
+  const doc = await Broadcast.create({ title, message, audience, recipients: ids.length, createdBy: req.user.id });
+  audit(req.user, 'broadcast.send', 'Broadcast', doc._id, { audience, recipients: ids.length });
+  res.status(201).json(doc);
+});
+
+exports.broadcasts = asyncHandler(async (req, res) => {
+  res.json(await Broadcast.find().sort({ createdAt: -1 }).limit(50).lean());
 });

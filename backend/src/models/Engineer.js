@@ -11,6 +11,7 @@ const schema = new Schema({
   skills: [String], certifications: [{ brand: String, docUrl: String }],
   city: String, serviceTerritories: [String],
   available: { type: Boolean, default: true }, active: { type: Boolean, default: true },
+  fcmTokens: [{ type: String, select: false }],
   status: { type: String, enum: ['pending', 'approved', 'suspended', 'rejected'], default: 'pending' },
   statusReason: String,
   kyc: [{ docType: String, url: String }],
