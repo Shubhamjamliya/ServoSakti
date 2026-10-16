@@ -18,6 +18,8 @@ router.get('/developer', allow('admin'), sys.getDeveloper);
 router.put('/developer', allow('admin'), sys.updateDeveloper);
 router.get('/developer/operational-data', allow('admin'), sys.operationalCounts);
 router.post('/developer/clear-operational-data', allow('admin'), sys.clearOperationalData);
+router.post('/broadcast', allow('admin'), ctrl.broadcast);
+router.get('/broadcasts', allow('admin'), ctrl.broadcasts);
 router.get('/audit-logs', allow('admin'), ctrl.auditLogs);
 
 module.exports = router;
