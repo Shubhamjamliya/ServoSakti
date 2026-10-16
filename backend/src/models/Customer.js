@@ -6,6 +6,7 @@ const schema = new mongoose.Schema({
   email: String,
   passwordHash: { type: String, required: true, select: false },
   active: { type: Boolean, default: true },
+  fcmTokens: [{ type: String, select: false }],
   addresses: [{ label: String, line: String, city: String, lat: Number, lng: Number }],
 }, { timestamps: true });
 

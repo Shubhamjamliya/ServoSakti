@@ -7,6 +7,7 @@ const schema = new mongoose.Schema({
   phone: String,
   passwordHash: { type: String, required: true, select: false },
   active: { type: Boolean, default: true },
+  fcmTokens: [{ type: String, select: false }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('Admin', schema);
