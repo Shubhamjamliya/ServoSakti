@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { api } from '@/shared/lib/api';
 import AppSidebar from '@/shared/layout/AppSidebar';
 import AppNavbar from '@/shared/layout/AppNavbar';
 import { panels, sidebarMenus } from '@/shared/constants/sidebarMenus';
@@ -12,6 +13,14 @@ export default function AppLayout({ panel: key }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const panel = panels[key];
+  const { pathname } = useLocation();
+  const [pending, setPending] = useState(null);
+  const isAdmin = key === 'admin' && user?.role === 'admin';
+
+  // Pending-approval counts for the admin sidebar badges; refreshed on every navigation.
+  useEffect(() => {
+    if (isAdmin) api('/admin/pending-counts').then(setPending).catch(() => {});
+  }, [isAdmin, pathname]);
   const menu = sidebarMenus[key];
 
   if (user?.role !== panel.role) return <Navigate to={loginPath(panel.role)} replace />;
@@ -27,6 +36,7 @@ export default function AppLayout({ panel: key }) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onCollapseChange={setCollapsed}
+        badges={pending ? { '/admin/oems/approvals': pending.oems, '/admin/vendors/approvals': pending.vendors, '/admin/engineers/approvals': pending.engineers } : {}}
       />
 
       <div className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${collapsed ? 'lg:ml-20' : 'lg:ml-80'}`}>

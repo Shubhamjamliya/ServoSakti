@@ -46,11 +46,18 @@ export const sidebarMenus = {
   ],
   admin: [
     link('Dashboard', 'LayoutDashboard', '/admin'),
-    section('Onboarding', [
-      link('Approvals', 'ShieldCheck', '/admin/approvals'),
-      link('Companies', 'Building2', '/admin/companies'),
-      link('Engineers', 'UserCog', '/admin/engineers'),
-      link('Customers', 'Users', '/admin/customers'),
+    section('Customers', [link('All Customers', 'Users', '/admin/customers')]),
+    section('OEMs', [
+      link('All OEMs', 'Factory', '/admin/oems'),
+      link('OEM Approvals', 'ShieldCheck', '/admin/oems/approvals'),
+    ]),
+    section('Service Companies', [
+      link('All Service Companies', 'Building2', '/admin/vendors'),
+      link('Service Company Approvals', 'ShieldCheck', '/admin/vendors/approvals'),
+    ]),
+    section('Engineers', [
+      link('All Engineers', 'UserCog', '/admin/engineers'),
+      link('Engineer Approvals', 'ShieldCheck', '/admin/engineers/approvals'),
     ]),
     section('Operations', [
       link('Service Requests', 'Headset', '/admin/service-requests'),

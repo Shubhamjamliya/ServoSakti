@@ -6,6 +6,7 @@ const { protect, allow } = require('../middleware/auth.middleware');
 
 router.use(protect);
 router.get('/dashboard', allow('admin'), ctrl.dashboard);
+router.get('/pending-counts', allow('admin'), ctrl.pendingCounts);
 router.get('/approvals', allow('admin'), ctrl.approvals);
 router.get('/mis', allow('admin'), ctrl.mis);
 router.get('/quality', allow('admin'), ctrl.quality);

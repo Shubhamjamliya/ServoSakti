@@ -17,13 +17,13 @@ export default function Dashboard() {
     <PageShell eyebrow="Admin Overview" title="Servoshakti Control Tower" actions={<PeriodSelect value={period} onChange={setPeriod} />}>
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Pending Approvals" value={v(d?.pendingApprovals)} helper="Companies + engineers" icon={ShieldCheck} accent="bg-amber-100" path="/admin/approvals" />
+        <MetricCard title="Pending Approvals" value={v(d?.pendingApprovals)} helper={loading ? '' : `OEM ${d?.pendingOems} · Service ${d?.pendingVendors} · Eng ${d?.pendingEngineers}`} icon={ShieldCheck} accent="bg-amber-100" path={d?.pendingOems ? '/admin/oems/approvals' : d?.pendingVendors ? '/admin/vendors/approvals' : '/admin/engineers/approvals'} />
         <MetricCard title="Open Requests" value={v(d?.open)} helper={`${v(d?.total)} total`} icon={Headset} accent="bg-sky-100" path="/admin/service-requests" />
         <MetricCard title="Unassigned" value={v(d?.unassigned)} helper="Need manual dispatch" icon={Route} accent="bg-rose-100" path="/admin/service-requests" />
         <MetricCard title="SLA Breaches" value={v(d?.breaches)} helper="Past TAT" icon={AlertTriangle} accent="bg-red-100" path="/admin/quality" />
         <MetricCard title="Completed" value={v(d?.closed)} helper={`Avg TAT ${v(d?.avgTatHours)} h`} icon={CheckCircle2} accent="bg-green-100" path="/admin/service-requests" />
         <MetricCard title="First-time Fix" value={loading ? '—' : `${d?.firstTimeFixPercent}%`} helper={`Repeat visits ${d?.repeatPercent ?? 0}%`} icon={Clock} accent="bg-violet-100" path="/admin/quality" />
-        <MetricCard title="OEMs / Vendors" value={loading ? '—' : `${d?.oems} / ${d?.vendors}`} helper="Approved + pending" icon={Building2} accent="bg-orange-100" path="/admin/companies" />
+        <MetricCard title="OEMs / Vendors" value={loading ? '—' : `${d?.oems} / ${d?.vendors}`} helper="Approved + pending" icon={Building2} accent="bg-orange-100" path="/admin/oems" />
         <MetricCard title="Engineers" value={v(d?.engineers)} helper="Approved" icon={UserCog} accent="bg-emerald-100" path="/admin/engineers" />
         <MetricCard title="Customers" value={v(d?.customers)} helper="Registered" icon={Users} accent="bg-cyan-100" path="/admin/customers" />
         <MetricCard title="Open Disputes" value={v(d?.openDisputes)} helper="Payment disputes" icon={AlertTriangle} accent="bg-yellow-100" path="/admin/disputes" />

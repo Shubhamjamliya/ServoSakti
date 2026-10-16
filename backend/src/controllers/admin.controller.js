@@ -25,9 +25,17 @@ exports.dashboard = asyncHandler(async (req, res) => {
   ]);
   res.json({
     ...stats, oems, vendors, engineers, customers,
-    pendingApprovals: pendingOems + pendingVendors + pendingEngineers, openDisputes, unassigned,
+    pendingApprovals: pendingOems + pendingVendors + pendingEngineers, pendingOems, pendingVendors, pendingEngineers, openDisputes, unassigned,
     money: money[0] || { vendor: 0, engineer: 0, fee: 0, unpaid: 0 },
   });
+});
+
+/** Applications waiting for a decision, per account type (sidebar badges). */
+exports.pendingCounts = asyncHandler(async (req, res) => {
+  const [oems, vendors, engineers] = await Promise.all([
+    Oem.countDocuments({ status: 'pending' }), Vendor.countDocuments({ status: 'pending' }), Engineer.countDocuments({ status: 'pending' }),
+  ]);
+  res.json({ oems, vendors, engineers });
 });
 
 exports.approvals = asyncHandler(async (req, res) => {

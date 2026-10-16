@@ -4,7 +4,7 @@ import { fmtDate } from '@/shared/lib/format';
 export default function Customers() {
   return (
     <ResourcePage
-      eyebrow="Onboarding"
+      eyebrow="Customers"
       title="Customers"
       endpoint="/customers"
       columns={[

@@ -1,8 +1,7 @@
-import { Route } from 'react-router-dom';
+import { Navigate, Route } from 'react-router-dom';
 import AppLayout from '@/shared/layout/AppLayout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
-import Approvals from './pages/Approvals.jsx';
-import Companies from './pages/Companies.jsx';
+import CompanyList from './pages/CompanyList.jsx';
 import Engineers from './pages/Engineers.jsx';
 import Customers from './pages/Customers.jsx';
 import ServiceRequests from './pages/ServiceRequests.jsx';
@@ -21,9 +20,14 @@ import DeveloperSettings from './pages/DeveloperSettings.jsx';
 export const adminRoutes = (
   <Route path="/admin" element={<AppLayout panel="admin" />}>
     <Route index element={<Dashboard />} />
-    <Route path="approvals" element={<Approvals />} />
-    <Route path="companies" element={<Companies />} />
+    <Route path="oems" element={<CompanyList type="oem" />} />
+    <Route path="oems/approvals" element={<CompanyList type="oem" pending />} />
+    <Route path="vendors" element={<CompanyList type="vendor" />} />
+    <Route path="vendors/approvals" element={<CompanyList type="vendor" pending />} />
     <Route path="engineers" element={<Engineers />} />
+    <Route path="engineers/approvals" element={<Engineers pending />} />
+    <Route path="companies" element={<Navigate to="/admin/oems" replace />} />
+    <Route path="approvals" element={<Navigate to="/admin/oems/approvals" replace />} />
     <Route path="customers" element={<Customers />} />
     <Route path="service-requests" element={<ServiceRequests />} />
     <Route path="dispatch" element={<Dispatch />} />
