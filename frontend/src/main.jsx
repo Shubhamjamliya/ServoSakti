@@ -5,11 +5,13 @@ import './index.css';
 import App from './App.jsx';
 import { AuthProvider } from './shared/context/AuthContext.jsx';
 import { ToastProvider } from './shared/context/ToastContext.jsx';
+import PushRegistrar from './shared/components/PushRegistrar.jsx';
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <AuthProvider>
       <ToastProvider>
+        <PushRegistrar />
         <App />
       </ToastProvider>
     </AuthProvider>
