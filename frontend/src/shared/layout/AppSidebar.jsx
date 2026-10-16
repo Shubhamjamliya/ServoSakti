@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   AlertTriangle, BarChart3, Building2, ChevronLeft, ChevronRight, CreditCard, DollarSign, Headset,
   LayoutDashboard, MapPin, Package, Receipt, Route, Search, Settings, Code, Briefcase, Factory, ShieldCheck, Star, UserCog,
-  Users, Wallet, X, Zap,
+  Users, Wallet, X, Zap, Megaphone,
 } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { Input } from '@/shared/components/ui/input';
@@ -13,6 +13,7 @@ import { panels } from '@/shared/constants/sidebarMenus';
 const iconMap = {
   AlertTriangle, BarChart3, Building2, CreditCard, DollarSign, Headset, LayoutDashboard, MapPin, Package,
   Receipt, Route, Settings, Code, Briefcase, Factory, ShieldCheck, Star, UserCog, Users, Wallet, Zap,
+  Megaphone,
 };
 
 const STORAGE_KEY = 'sf_sidebar_state';

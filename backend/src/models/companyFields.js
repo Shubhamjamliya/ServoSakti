@@ -11,4 +11,5 @@ module.exports = {
   status: { type: String, enum: ['pending', 'approved', 'suspended', 'rejected'], default: 'pending' },
   statusReason: String,
   active: { type: Boolean, default: true },
+  fcmTokens: [{ type: String, select: false }],
 };

@@ -1,6 +1,7 @@
 const Notification = require('../models/Notification');
 const AuditLog = require('../models/AuditLog');
 const Admin = require('../models/Admin');
+const push = require('./push.service');
 
 let io = null;
 exports.setIo = (instance) => { io = instance; };
@@ -14,6 +15,7 @@ exports.notify = async (accountIds, title, body, type = 'info') => {
   if (!ids.length) return;
   const docs = await Notification.insertMany(ids.map((userId) => ({ userId, title, body, type })));
   docs.forEach((d) => io?.to(`user:${d.userId}`).emit('notification', d));
+  push.sendPushToAccounts(ids, { title, body, data: { type } }).catch((e) => console.error('push failed', e.message));
 };
 
 exports.notifyAdmins = async (title, body, type) => {
