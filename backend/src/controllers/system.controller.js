@@ -14,7 +14,7 @@ const { uploadImageBuffer, removeUploadedFile } = require('../services/storage.s
 const { isCloudinaryConfigured } = require('../utils/cloudinary');
 const { audit } = require('../services/realtime');
 
-const TEXT_FIELDS = ['companyName', 'email', 'phoneCountryCode', 'phoneNumber', 'address', 'state', 'pincode', 'region'];
+const TEXT_FIELDS = ['companyName', 'appTagline', 'email', 'phoneCountryCode', 'phoneNumber', 'address', 'state', 'pincode', 'region'];
 const LOGO_FIELDS = ['logo', 'favicon', 'oemLogo', 'vendorLogo', 'engineerLogo', 'customerLogo'];
 exports.LOGO_FIELDS = LOGO_FIELDS;
 
@@ -25,8 +25,9 @@ const brandingOf = (s) => {
 
 /** Public: company name + logos for login screens and the favicon (no secrets). */
 exports.branding = asyncHandler(async (req, res) => {
-  const b = brandingOf(await Setting.get());
-  res.json({ companyName: b.companyName, ...Object.fromEntries(LOGO_FIELDS.map((f) => [f, b[f]])) });
+  const setting = await Setting.get();
+  const b = brandingOf(setting);
+  res.json({ companyName: b.companyName, appTagline: b.appTagline || '', customerHome: setting.customerHome, ...Object.fromEntries(LOGO_FIELDS.map((f) => [f, b[f]])) });
 });
 
 exports.getBusinessSetup = asyncHandler(async (req, res) => {
@@ -54,6 +55,28 @@ exports.updateBusinessSetup = asyncHandler(async (req, res) => {
   res.json({ businessSetup: brandingOf(updated) });
 });
 
+const QUICK_KEYS = ['request', 'product', 'warranty', 'history'];
+const str = (v, max = 80) => String(v ?? '').trim().slice(0, max);
+
+exports.getCustomerHome = asyncHandler(async (req, res) => {
+  res.json({ customerHome: (await Setting.get()).customerHome });
+});
+
+/** Home screen content of the customer app: greeting line, banner slides and the four tile labels/images. */
+exports.updateCustomerHome = asyncHandler(async (req, res) => {
+  const { subtitle, banners, quickActions } = req.body;
+  if (!Array.isArray(banners) || banners.length > 8) throw new ApiError(400, 'banners must be a list of up to 8 slides');
+  const clean = {
+    subtitle: str(subtitle, 200),
+    banners: banners.map((b) => ({ title: str(b.title), highlight: str(b.highlight), chips: (Array.isArray(b.chips) ? b.chips : []).map((c) => str(c, 30)).filter(Boolean).slice(0, 3), image: str(b.image, 500) }))
+      .filter((b) => b.title || b.highlight || b.image),
+    quickActions: (Array.isArray(quickActions) ? quickActions : []).filter((q) => QUICK_KEYS.includes(q.key)).map((q) => ({ key: q.key, label: str(q.label, 40), image: str(q.image, 500) })),
+  };
+  const s = await Setting.findOneAndUpdate({ key: 'global' }, { $set: { customerHome: clean } }, { new: true, upsert: true });
+  audit(req.user, 'customer-home.update', 'Setting', s._id, { banners: clean.banners.length });
+  res.json({ customerHome: s.customerHome });
+});
+
 exports.getDeveloper = asyncHandler(async (req, res) => {
   const s = await Setting.get();
   res.json({ developerSettings: s.developerSettings, cloudinaryConfigured: isCloudinaryConfigured() });
@@ -79,6 +102,8 @@ const GROUPS = [
   { key: 'dayLogs', label: 'Engineer day logs', Model: DayLog },
   { key: 'aiComplaints', label: 'AI complaints', Model: AiComplaint },
   { key: 'notifications', label: 'Notifications', Model: Notification },
+  { key: 'payments', label: 'Customer payments', Model: require('../models/Payment') },
+  { key: 'planSubscriptions', label: 'AMC / CMC subscriptions', Model: require('../models/PlanSubscription') },
 ];
 const CONFIRM_PHRASE = 'DELETE OPERATIONAL DATA';
 

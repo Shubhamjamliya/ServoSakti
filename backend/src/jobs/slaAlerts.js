@@ -4,7 +4,7 @@ const { notifyAdmins, notifyCompany } = require('../services/realtime');
 /** Flags calls past their TAT and warns once when a call has used 80% of its window. */
 module.exports = async function slaAlerts() {
   const now = new Date();
-  const open = await ServiceRequest.find({ status: { $nin: ['approved', 'closed', 'cancelled'] }, tatDueAt: { $ne: null }, slaAlertedAt: null });
+  const open = await ServiceRequest.find({ status: { $nin: ['approved', 'closed', 'cancelled', 'failed'] }, tatDueAt: { $ne: null }, slaAlertedAt: null });
   for (const sr of open) {
     const total = sr.tatDueAt - sr.createdAt;
     const used = (now - sr.createdAt) / total;

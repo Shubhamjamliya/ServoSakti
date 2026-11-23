@@ -7,7 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { api } from '@/shared/lib/api';
 import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
-import { fmtDateTime, humanize, labelOf, JOB_TYPES, WARRANTY_TYPES } from '@/shared/lib/format';
+import { viewUrl } from '@/shared/lib/googleMaps';
+import { fmtDateTime, humanize, labelOf, JOB_TYPES, WARRANTY_TYPES, SR_STATUSES, PAYMENT_STATUSES, PAYMENT_MODES, QUOTE_STATUSES, slotText } from '@/shared/lib/format';
+import { inr } from '@/shared/lib/utils';
+import BillView, { CoverageBadge } from '@/shared/components/BillView';
 
 /** Asks for a (optionally required) text reason/note, then calls onConfirm(text). */
 export function PromptDialog({ open, onOpenChange, title, description, label = 'Note', required = false, confirmLabel = 'Confirm', destructive = false, onConfirm, inputProps }) {
@@ -51,6 +54,30 @@ export function PromptDialog({ open, onOpenChange, title, description, label = '
   );
 }
 
+/** Yes/no confirmation; onConfirm may be async and throw to show an error toast. */
+export function ConfirmDialog({ open, onOpenChange, title, description, confirmLabel = 'Confirm', destructive = false, onConfirm }) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const run = async () => {
+    setBusy(true);
+    try { await onConfirm(); onOpenChange(false); } catch (err) { toast.error(err.message); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {description && <DialogDescription>{description}</DialogDescription>}
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" variant={destructive ? 'destructive' : 'default'} disabled={busy} onClick={run}>{busy ? 'Working...' : confirmLabel}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const Row = ({ label, children }) => (
   <div className="flex justify-between gap-4 border-b border-neutral-100 py-1.5 text-sm last:border-0">
     <span className="text-neutral-500">{label}</span>
@@ -59,21 +86,92 @@ const Row = ({ label, children }) => (
 );
 
 /** Read-only view of a service request: details, dispatch history and the engineer's field report. */
+const H4 = ({ children }) => <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">{children}</h4>;
+const photoLinks = (urls = []) => urls.filter(Boolean).map((u) => (
+  <a key={u} href={u} target="_blank" rel="noreferrer" className="rounded-lg border px-2 py-1 text-xs text-primary hover:bg-muted">{u.split('/').pop().slice(-18)}</a>
+));
+
+/** Review flags raised by the system (subtype mismatch with history, serial mismatch…). The payout is held until cleared. */
+function SrFlags({ sr }) {
+  if (!sr.flags?.length) return null;
+  return (
+    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+      <p className="font-semibold">Flagged for review — payout is held</p>
+      <ul className="list-disc pl-5">{sr.flags.map((f) => <li key={f}>{f}</li>)}</ul>
+    </div>
+  );
+}
+
+/**
+ * Everything about money on one job: coverage, slot, payment mode, the on-site product check, the revised price,
+ * the bill and each payment / refund. Shown in the admin, OEM and service company views.
+ */
+export function SrMoney({ sr, compact = false }) {
+  if (!sr.bill) return null;
+  const q = sr.quote && sr.quote.status ? sr.quote : null;
+  const v = sr.verification || {};
+  return (
+    <div className="space-y-3">
+      <H4>Pricing & payment</H4>
+      <SrFlags sr={sr} />
+      {q?.status === 'pending' && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="font-semibold">Revised price waiting for the customer: {inr(q.oldTotal)} → {inr(q.newTotal)}</p>
+          <p className="text-xs">{q.reason} · expires {fmtDateTime(q.expiresAt)}</p>
+        </div>
+      )}
+      <div>
+        <Row label="Product type">{sr.subtypeName}</Row>
+        <Row label="Coverage"><CoverageBadge coverage={sr.coverage} /></Row>
+        {!compact && <Row label="Visit slot">{slotText(sr)}{sr.reschedules ? ` · rescheduled ${sr.reschedules}×` : ''}</Row>}
+        <Row label="Payment">{PAYMENT_MODES[sr.paymentMode]} · {labelOf(PAYMENT_STATUSES, sr.paymentStatus)}{sr.cashCollected > 0 ? ` · ₹${sr.cashCollected} cash` : ''}</Row>
+        {q && q.status !== 'pending' && <Row label="Revised price">{QUOTE_STATUSES[q.status]}: {inr(q.oldTotal)} → {inr(q.newTotal)} ({q.reason})</Row>}
+        {sr.damage && <Row label="Damage">{v.damageNote || 'Physical damage found — coverage not applied'}</Row>}
+        {sr.cancellation?.at && <Row label="Cancelled">{`by ${sr.cancellation.by}${sr.cancellation.fee ? ` · fee ₹${sr.cancellation.fee}` : ' · no fee'}${sr.cancellation.reason ? ` · ${sr.cancellation.reason}` : ''}`}</Row>}
+        {sr.oemClaim?.status && sr.oemClaim.status !== 'none' && <Row label="OEM warranty claim">{`${humanize(sr.oemClaim.status)} · ${inr(sr.oemClaim.amount)}${sr.oemClaim.note ? ` · ${sr.oemClaim.note}` : ''}`}</Row>}
+      </div>
+      {(v.nameplatePhoto || v.damagePhotos?.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+          <span>On-site check{v.at ? ` ${fmtDateTime(v.at)}` : ''}{v.serialNumber ? ` · serial ${v.serialNumber}` : ''}:</span>
+          {photoLinks([v.nameplatePhoto, ...(v.damagePhotos || [])])}
+        </div>
+      )}
+      <div className="rounded-xl border border-neutral-200 p-3"><BillView bill={sr.bill} /></div>
+      {!compact && sr.payments?.length > 0 && (
+        <div>
+          <H4>Payments</H4>
+          <ol className="space-y-1.5 text-sm">
+            {sr.payments.map((p) => (
+              <li key={p._id} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-50 px-3 py-2">
+                <span>
+                  {fmtDateTime(p.paidAt || p.createdAt)} · {p.provider === 'cash' ? `Cash to ${p.engineerName || 'engineer'}` : `Online (${humanize(p.provider)})`} · {humanize(p.purpose)}
+                  {p.refundedAmount > 0 && <span className="text-neutral-500"> · refunded {inr(p.refundedAmount)}</span>}
+                </span>
+                <span className="flex shrink-0 items-center gap-2 font-semibold">{inr(p.amount)}<Badge>{humanize(p.status)}</Badge></span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SrDetailDialog({ srId, onClose }) {
   const { data: sr, loading, error } = useApi(srId ? `/service-requests/${srId}` : null);
   const r = sr?.report;
   return (
     <Dialog open={!!srId} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader><DialogTitle>{sr ? `${sr.srNumber} · ${sr.brand || ''} ${sr.model || ''}` : 'Service request'}</DialogTitle></DialogHeader>
         {loading && <p className="text-sm text-neutral-500">Loading...</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {sr && (
           <div className="space-y-5">
             <div className="flex flex-wrap gap-2">
-              <Badge>{humanize(sr.status)}</Badge>
+              <Badge>{labelOf(SR_STATUSES, sr.status)}</Badge>
               <Badge>{sr.priority}</Badge>
-              <Badge tone={sr.warranty === 'warranty' ? 'green' : 'gray'}>{labelOf(WARRANTY_TYPES, sr.warranty)}</Badge>
+              {sr.bill ? <CoverageBadge coverage={sr.coverage} /> : <Badge tone={sr.warranty === 'warranty' ? 'green' : 'gray'}>{labelOf(WARRANTY_TYPES, sr.warranty)}</Badge>}
               {sr.repeatOf && <Badge tone="amber">Repeat call</Badge>}
             </div>
             <div>
@@ -81,6 +179,9 @@ export function SrDetailDialog({ srId, onClose }) {
               <Row label="Serial number">{sr.serialNumber}</Row>
               <Row label="Job type">{labelOf(JOB_TYPES, sr.jobType)}</Row>
               <Row label="City / address">{[sr.city, sr.address].filter(Boolean).join(' · ')}</Row>
+              <Row label="Service zone">{sr.zoneName}</Row>
+              {sr.location?.lat != null && <Row label="Map"><a className="text-primary underline" target="_blank" rel="noreferrer" href={viewUrl(sr.location.lat, sr.location.lng)}>Open location</a></Row>}
+              {sr.failReason && <Row label="Failed because">{sr.failReason}</Row>}
               <Row label="Issue">{sr.issue}</Row>
               <Row label="OEM">{sr.oemName}</Row>
               <Row label="Service company">{sr.vendorName}</Row>
@@ -89,6 +190,8 @@ export function SrDetailDialog({ srId, onClose }) {
               <Row label="TAT due">{fmtDateTime(sr.tatDueAt)}</Row>
               <Row label="Created">{fmtDateTime(sr.createdAt)}</Row>
             </div>
+
+            <SrMoney sr={sr} />
 
             {sr.dispatchLogs?.length > 0 && (
               <div>
@@ -150,7 +253,7 @@ export function ReviewDialog({ srId, onClose, onDone }) {
 
   return (
     <Dialog open={!!srId} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Review {sr?.srNumber}</DialogTitle>
           <DialogDescription>Check the evidence before approving. Approval makes the call eligible for billing, incentive and payout.</DialogDescription>
@@ -165,6 +268,7 @@ export function ReviewDialog({ srId, onClose, onDone }) {
               <Row label="Customer confirmation">{sr.otp?.verified ? 'OTP verified' : r.customerSignature ? 'Signature' : null}</Row>
               <Row label="Photos">{`${r.beforePhotos?.length || 0} before / ${r.afterPhotos?.length || 0} after`}</Row>
             </div>
+            <SrMoney sr={sr} compact />
             <div className="space-y-1.5">
               <Label htmlFor="review-note">Note</Label>
               <Textarea id="review-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Required when rejecting" />

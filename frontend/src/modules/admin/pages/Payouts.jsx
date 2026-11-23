@@ -3,7 +3,8 @@ import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { PromptDialog } from '@/shared/components/Dialogs';
 import ResourcePage from '@/shared/components/ResourcePage';
-import { api } from '@/shared/lib/api';
+import { Download } from 'lucide-react';
+import { api, downloadFile } from '@/shared/lib/api';
 import { useToast } from '@/shared/context/ToastContext';
 import { JOB_TYPES, labelOf } from '@/shared/lib/format';
 import { inr } from '@/shared/lib/utils';
@@ -29,6 +30,7 @@ export default function Payouts() {
         filterLabel="All approvals"
         filterOptions={[{ value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'held', label: 'Held' }]}
         refreshKey={version}
+        extraActions={<Button variant="outline" onClick={() => downloadFile('/settlements/export', 'payouts.csv').catch((e) => toast.error(e.message))}><Download className="h-4 w-4" /> Export all (CSV)</Button>}
         columns={[
           { key: 'srNumber', label: 'SR' },
           { key: 'vendorName', label: 'Service company' },

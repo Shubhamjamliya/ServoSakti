@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui
 import { Input, NativeSelect } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { PageShell } from '@/shared/components/PageShell';
+import ZonePicker, { saveCoverage } from '@/shared/components/ZonePicker';
 import { api, uploadFiles } from '@/shared/lib/api';
 import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
@@ -77,6 +78,13 @@ export default function Profile() {
               </div>
               <div className="sm:col-span-2"><Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save profile'}</Button></div>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader><CardTitle>Service zones</CardTitle></CardHeader>
+          <CardContent>
+            <ZonePicker selected={co.serviceZones || []} onSave={async (ids) => { await saveCoverage(ids); reload(); }} hint="Zones your company covers. Dispatch uses this to offer you local and partner calls." />
           </CardContent>
         </Card>
 

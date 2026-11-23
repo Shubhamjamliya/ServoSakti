@@ -18,10 +18,19 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   if (payload.notification) return;
   const { title, body } = payload.data || {};
-  if (title) self.registration.showNotification(title, { body, icon: '/favicon.svg' });
+  if (title) self.registration.showNotification(title, { body, icon: '/favicon.svg', data: { link: (payload.data || {}).link } });
 });
 
+// The backend puts the target screen in data.link (e.g. /engineer/jobs); fall back to the app root.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.matchAll({ type: 'window' }).then((list) => (list[0] ? list[0].focus() : clients.openWindow('/'))));
+  const data = event.notification.data || {};
+  const link = data.link || data.FCM_MSG?.data?.link || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => 'focus' in c);
+      if (open) { open.navigate?.(link); return open.focus(); }
+      return clients.openWindow(link);
+    })
+  );
 });

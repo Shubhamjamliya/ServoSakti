@@ -95,6 +95,8 @@ test('full service lifecycle: request -> dispatch -> field -> approval -> payout
   });
   expect(passport.status).toBe(201);
   expect(passport.body.warrantyStatus).toBe('In Warranty');
+  // a customer-added warranty counts once the admin/OEM has checked it
+  await api().patch(`/api/products/passports/${passport.body._id}/warranty`).set(auth(ctx.admin)).send({ decision: 'approve' }).expect(200);
 
   const created = await api().post('/api/service-requests').set(auth(ctx.customer)).send({ passportId: passport.body._id, issue: 'Drive tripping', city: 'Indore', priority: 'High', location: { lat: 22.7196, lng: 75.8577 } });
   expect(created.status).toBe(201);

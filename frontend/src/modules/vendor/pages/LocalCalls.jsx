@@ -11,7 +11,7 @@ const ORIGINS = [
 ];
 
 export default function LocalCalls() {
-  const tools = useSrTools({ assign: true, review: true, outsource: true });
+  const tools = useSrTools({ assign: true, review: true, outsource: true, fail: true });
   return (
     <>
       <ResourcePage

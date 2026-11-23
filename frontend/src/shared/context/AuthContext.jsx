@@ -28,10 +28,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const verifyOtp = useCallback(async (loginRole, phone, otp) => {
-    const { token, user: u } = await api('/auth/verify-otp', { method: 'POST', body: { role: loginRole, phone, otp } });
-    setSession(loginRole, token, u);
+    const res = await api('/auth/verify-otp', { method: 'POST', body: { role: loginRole, phone, otp } });
+    if (res.isNew) return { isNew: true, signupToken: res.signupToken }; // verified number with no account yet: onboarding
+    setSession(loginRole, res.token, res.user);
     bump((n) => n + 1);
-    return u;
+    return res.user;
   }, []);
 
   const logout = useCallback(() => {

@@ -16,7 +16,7 @@ const tabs = [
 ];
 
 export const engineerRoutes = (
-  <Route path="/engineer" element={<MobileLayout title="Servoshakti Engineer" base="/engineer" role="engineer" tabs={tabs} />}>
+  <Route path="/engineer" element={<MobileLayout title="Engineer" base="/engineer" role="engineer" tabs={tabs} />}>
     <Route index element={<Navigate to="home" replace />} />
     <Route path="home" element={<Home />} />
     <Route path="jobs" element={<Jobs />} />

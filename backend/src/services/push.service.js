@@ -17,21 +17,49 @@ function getApp() {
   return app;
 }
 
+// Where a tapped notification should open, by account role and notification type. Falls back to the role's home.
+const HOME = { admin: '/admin', oem: '/oem', vendor_owner: '/vendor', engineer: '/engineer', customer: '/customer' };
+const LINKS = {
+  offer: { engineer: '/engineer/jobs', vendor_owner: '/vendor/outside-requests' },
+  assignment: { engineer: '/engineer/jobs' },
+  service: { customer: '/customer/tracking', oem: '/oem/service-requests', admin: '/admin/service-requests', vendor_owner: '/vendor/local-calls' },
+  review: { engineer: '/engineer/jobs', oem: '/oem/service-requests', vendor_owner: '/vendor/local-calls', admin: '/admin/service-requests' },
+  sla: { oem: '/oem/sla-tat', vendor_owner: '/vendor/local-calls', admin: '/admin/service-requests' },
+  payment: { engineer: '/engineer/earnings', vendor_owner: '/vendor/earnings' },
+  dispute: { admin: '/admin/disputes', vendor_owner: '/vendor/disputes' },
+  incentive: { engineer: '/engineer/earnings', admin: '/admin/incentives' },
+  approval: { admin: '/admin/approvals' },
+  complaint: { customer: '/customer/complaints', admin: '/admin/service-requests' },
+  warranty: { customer: '/customer/product-passport' },
+  otp: { customer: '/customer/tracking' },
+  dispatch: { admin: '/admin/dispatch' },
+};
+const linkFor = (role, type) => LINKS[type]?.[role] || HOME[role] || '/';
+
+/** FCM message body with per-platform options so Android/iOS/web all show it as a high-priority alert. */
+const buildMessage = (tokens, { title, body, data }, role) => ({
+  tokens,
+  notification: { title, body },
+  data: { ...Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, String(v)])), link: linkFor(role, data?.type), title: String(title), body: String(body || '') },
+  android: { priority: 'high', notification: { channelId: 'servoshakti', sound: 'default' } },
+  apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } },
+  webpush: { headers: { Urgency: 'high' }, notification: { icon: '/favicon.svg' } },
+});
+
 const isUnregistered = (error) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(error?.code);
 
 // FCM multicast caps at 500 tokens per request.
 const FCM_BATCH_SIZE = 500;
 
 /** Sends to a flat token list in batches and returns the tokens FCM rejected as dead (uninstalled app, revoked permission). */
-async function sendToTokens(tokens, { title, body, data }) {
+async function sendToTokens(tokens, payload, role) {
   const firebaseApp = getApp();
   if (!firebaseApp || !tokens.length) return [];
   const messaging = getMessaging(firebaseApp);
-  const stringData = Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, String(v)]));
   const invalid = [];
   for (let i = 0; i < tokens.length; i += FCM_BATCH_SIZE) {
     const batch = tokens.slice(i, i + FCM_BATCH_SIZE);
-    const result = await messaging.sendEachForMulticast({ tokens: batch, notification: { title, body }, data: stringData });
+    const result = await messaging.sendEachForMulticast(buildMessage(batch, payload, role));
     result.responses.forEach((r, idx) => { if (!r.success && isUnregistered(r.error)) invalid.push(batch[idx]); });
   }
   return invalid;
@@ -42,10 +70,10 @@ async function sendPushToAccounts(accountIds, payload) {
   if (!getApp()) return;
   const ids = [...new Set((accountIds || []).filter(Boolean).map(String))];
   if (!ids.length) return;
-  for (const Model of Object.values(MODEL_BY_ROLE)) {
+  for (const [role, Model] of Object.entries(MODEL_BY_ROLE)) {
     const accounts = await Model.find({ _id: { $in: ids }, fcmTokens: { $exists: true, $ne: [] } }).select('+fcmTokens').lean();
     const tokens = [...new Set(accounts.flatMap((a) => a.fcmTokens))];
-    const invalid = await sendToTokens(tokens, payload);
+    const invalid = await sendToTokens(tokens, payload, role);
     if (invalid.length) await Model.updateMany({ _id: { $in: accounts.map((a) => a._id) } }, { $pullAll: { fcmTokens: invalid } });
   }
 }
@@ -58,7 +86,7 @@ async function sendPushToRoles(roles, payload) {
     if (!Model) continue;
     const accounts = await Model.find({ active: { $ne: false }, fcmTokens: { $exists: true, $ne: [] } }).select('+fcmTokens').lean();
     const tokens = [...new Set(accounts.flatMap((a) => a.fcmTokens))];
-    const invalid = await sendToTokens(tokens, payload);
+    const invalid = await sendToTokens(tokens, payload, role);
     if (invalid.length) await Model.updateMany({}, { $pullAll: { fcmTokens: invalid } });
   }
 }

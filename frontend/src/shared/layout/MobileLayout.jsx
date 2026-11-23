@@ -1,15 +1,19 @@
 import { Navigate, NavLink, Outlet } from 'react-router-dom';
 import { loginPath } from '../constants/authRoles.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useBranding } from '../lib/useBranding.js';
+import { BRAND } from '../constants/sidebarMenus.js';
 
+/** `title` is the app's role ("Engineer"); the business name in front comes from Admin → Business Setup. */
 export default function MobileLayout({ title, base, role, tabs }) {
   const { user, logout } = useAuth();
+  const branding = useBranding();
   if (user?.role !== role) return <Navigate to={loginPath(role)} replace />;
   return (
     <div className="min-h-screen bg-slate-200 flex justify-center">
       <div className="w-full max-w-md bg-white min-h-screen flex flex-col shadow-xl relative">
         <header className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
-          <span className="font-semibold">{title}</span>
+          <span className="font-semibold">{branding?.companyName || BRAND.name} {title}</span>
           <button onClick={logout} className="text-xs text-slate-300">Logout</button>
         </header>
         <main className="flex-1 p-4 pb-20"><Outlet /></main>

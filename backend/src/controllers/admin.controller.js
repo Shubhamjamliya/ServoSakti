@@ -107,7 +107,7 @@ exports.quality = asyncHandler(async (req, res) => {
 exports.getSettings = asyncHandler(async (req, res) => res.json(await Setting.get()));
 
 exports.updateSettings = asyncHandler(async (req, res) => {
-  const allowed = ['acceptanceWindowMinutes', 'maxRadiusKm', 'maxEngineerLoad', 'autoDispatch', 'slaHours', 'minApprovedCallsForRecharge', 'rechargeDays', 'rechargeTiming', 'repeatCallPayout', 'gstPercent'];
+  const allowed = ['acceptanceWindowMinutes', 'maxRadiusKm', 'maxEngineerLoad', 'autoDispatch', 'slaHours', 'minApprovedCallsForRecharge', 'rechargeDays', 'rechargeTiming', 'repeatCallPayout', 'gstPercent', 'enforceZones', 'warrantyReminderDays', 'failedCallPayout', 'inactiveMonthRecharge', 'pricing'];
   const patch = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
   const s = await Setting.findOneAndUpdate({ key: 'global' }, patch, { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true });
   audit(req.user, 'settings.update', 'Setting', s._id, patch);

@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { useAuth } from '@/shared/context/AuthContext';
 import BrandMark, { useBrand } from '@/shared/components/BrandMark';
 import { AUTH_ROLES } from '@/shared/constants/authRoles';
+import Register from './Register';
+import CustomerLogin from '@/modules/customer/pages/CustomerLogin';
 import { api } from '@/shared/lib/api';
 import { cn } from '@/shared/lib/utils';
 
@@ -55,6 +57,10 @@ function OtpBoxes({ value, onChange, autoFocus, disabled }) {
 
 /** Login for one account type, mounted at /<portal>/login. Customer, engineer and service company use a mobile OTP; admin and OEM a password. */
 export default function Login({ portal }) {
+  if (portal === 'customer') {
+    return <CustomerLogin />;
+  }
+
   const cfg = AUTH_ROLES[portal];
   const { user, login, verifyOtp } = useAuth();
   const nav = useNavigate();
@@ -62,13 +68,18 @@ export default function Login({ portal }) {
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   const [id, setId] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [onboarding, setOnboarding] = useState(null); // { phone, signupToken? } once we know the number is new
+  const [pwStep, setPwStep] = useState('phone'); // OEM only: 'phone' | 'password'
   const [otp, setOtp] = useState('');
   const [defaultOtp, setDefaultOtp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const byEmail = cfg.identifier === 'email';
+  const phonePassword = !cfg.otp && !byEmail; // OEM: phone first, then password (existing) or onboarding (new)
 
   if (user?.role === cfg.role) return <Navigate to={cfg.base} replace />;
+  if (onboarding) return <Register portal={portal} phone={onboarding.phone} signupToken={onboarding.signupToken} onBack={() => { setOnboarding(null); setStep('phone'); setPwStep('phone'); setOtp(''); setError(''); }} />;
 
   const run = async (fn) => {
     setError('');
@@ -89,8 +100,21 @@ export default function Login({ portal }) {
 
   const verify = async (code) => {
     if (code.length !== OTP_LENGTH) { setError(`Enter the ${OTP_LENGTH}-digit OTP`); return; }
-    const ok = await run(async () => { await verifyOtp(cfg.role, id, code); nav(cfg.base, { replace: true }); });
+    const ok = await run(async () => {
+      const res = await verifyOtp(cfg.role, id, code);
+      if (res.isNew) setOnboarding({ phone: id, signupToken: res.signupToken });
+      else nav(cfg.base, { replace: true });
+    });
     if (!ok) setOtp('');
+  };
+
+  const checkPhone = (e) => {
+    e.preventDefault();
+    if (!/^\d{10}$/.test(id)) { setError('Enter a valid 10-digit mobile number'); return; }
+    return run(async () => {
+      const { exists } = await api('/auth/check-account', { method: 'POST', body: { role: cfg.role, phone: id } });
+      if (exists) setPwStep('password'); else setOnboarding({ phone: id });
+    });
   };
 
   const passwordLogin = (e) => {
@@ -126,24 +150,45 @@ export default function Login({ portal }) {
 
         <div className="mx-auto w-full max-w-sm">
           {/* Password login (admin, OEM) */}
-          {!cfg.otp && (
+          {phonePassword && pwStep === 'phone' && (
+            <form onSubmit={checkPhone}>
+              <h2 className="text-[22px] font-extrabold text-neutral-900">{cfg.label} login</h2>
+              <p className="mb-5 mt-1.5 text-sm text-neutral-500">Enter your mobile number. New here? We&apos;ll set up your account next.</p>
+              <div className="flex gap-2">
+                <div className="flex h-12 items-center justify-center rounded-xl border border-neutral-300 bg-white px-3.5">
+                  <span className="text-[15px] font-bold text-neutral-900">🇮🇳 +91</span>
+                </div>
+                <Input type="tel" inputMode="numeric" placeholder="10-digit mobile number" maxLength={10} autoFocus autoComplete="tel-national"
+                  value={id} onChange={(e) => { setError(''); setId(e.target.value.replace(/\D/g, '').slice(0, 10)); }} className="h-12 flex-1 rounded-xl bg-white" />
+              </div>
+              {error && <p className="mt-2.5 text-[13px] text-destructive">{error}</p>}
+              <Button type="submit" className={submitBtn} disabled={id.length !== 10 || loading}>{loading ? 'Checking...' : 'Continue'}</Button>
+            </form>
+          )}
+
+          {/* Password login (admin by email; OEM after its phone is found) */}
+          {!cfg.otp && (!phonePassword || pwStep === 'password') && (
             <form onSubmit={passwordLogin}>
               <h2 className="text-[22px] font-extrabold text-neutral-900">{cfg.label} login</h2>
-              <p className="mb-5 mt-1.5 text-sm text-neutral-500">Sign in with your {byEmail ? 'email' : 'phone number'} and password</p>
-              <div className="relative mb-3">
+              <p className="mb-5 mt-1.5 text-sm text-neutral-500">{byEmail ? 'Sign in with your email and password' : <>Enter the password for <span className="font-bold text-neutral-900">+91 {id}</span></>}</p>
+              {byEmail && <div className="relative mb-3">
                 {byEmail && <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />}
                 <Input
                   type={byEmail ? 'email' : 'tel'} inputMode={byEmail ? 'email' : 'numeric'} autoComplete="username" required
                   placeholder={byEmail ? 'Email address' : 'Phone number'} value={id} onChange={(e) => { setError(''); setId(e.target.value); }}
                   className={cn('h-12 rounded-xl bg-white', byEmail && 'pl-9')}
                 />
-              </div>
+              </div>}
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-                <Input type="password" autoComplete="current-password" required placeholder="Password" value={password} onChange={(e) => { setError(''); setPassword(e.target.value); }} className="h-12 rounded-xl bg-white pl-9" />
+                <Input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required placeholder="Password" value={password} onChange={(e) => { setError(''); setPassword(e.target.value); }} className="h-12 rounded-xl bg-white pl-9 pr-11" />
+                <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700">
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
               {error && <p className="mt-2.5 text-[13px] text-destructive">{error}</p>}
               <Button type="submit" className={submitBtn} disabled={loading}>{loading ? 'Signing in...' : 'Login'}</Button>
+              {phonePassword && <button type="button" onClick={() => { setPwStep('phone'); setPassword(''); setError(''); }} className="mt-3 w-full text-center text-sm font-semibold text-primary hover:underline">Change phone number</button>}
             </form>
           )}
 
@@ -151,7 +196,7 @@ export default function Login({ portal }) {
           {cfg.otp && step === 'phone' && (
             <form onSubmit={requestOtp}>
               <h2 className="text-[22px] font-extrabold text-neutral-900">Welcome</h2>
-              <p className="mb-5 mt-1.5 text-sm text-neutral-500">Sign in with your mobile number to continue</p>
+              <p className="mb-5 mt-1.5 text-sm text-neutral-500">Sign in with your mobile number. New here? We&apos;ll set up your account after verifying it.</p>
               <div className="flex gap-2">
                 <div className="flex h-12 items-center justify-center rounded-xl border border-neutral-300 bg-white px-3.5">
                   <span className="text-[15px] font-bold text-neutral-900">🇮🇳 +91</span>
@@ -196,8 +241,6 @@ export default function Login({ portal }) {
           )}
 
           <div className="mt-8 space-y-1.5 text-center text-[11px] leading-4 text-neutral-500">
-            {cfg.register && step === 'phone' && <p className="text-sm">New here? <Link to={`${cfg.base}/register`} className="font-bold text-primary">Create a {cfg.label} account</Link></p>}
-            <p><Link to="/login" className="underline">Not a {cfg.label}? Choose another portal</Link></p>
           </div>
         </div>
       </div>

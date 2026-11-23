@@ -9,6 +9,9 @@ const schema = new Schema({
   rateCardId: ref('RateCard'), rateMissing: { type: Boolean, default: false },
   rateSnapshot: Schema.Types.Mixed, // frozen copy of the rate card at approval time
   vendorAmount: { type: Number, default: 0 }, engineerAmount: { type: Number, default: 0 }, platformFee: { type: Number, default: 0 }, tax: { type: Number, default: 0 },
+  coverage: String, surchargeShare: { type: Number, default: 0 },
+  cashCollected: { type: Number, default: 0 }, // collected on site by the engineer; subtracted from what the platform pays out
+  netPayable: Number, // payable amount minus cash collected (negative = owed to the platform)
   approval: { type: String, enum: ['pending', 'approved', 'held'], default: 'pending' },
   paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
   txnRef: String, holdReason: String,

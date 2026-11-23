@@ -28,6 +28,16 @@ const hash = (pw) => {
   if (!pw || String(pw).length < 6) throw new ApiError(400, 'Password must be at least 6 characters');
   return bcrypt.hash(String(pw), 10);
 };
+/** Proof that a phone passed OTP verification before it has an account; lets the onboarding form lock the number. */
+const signSignup = (phone, role) => jwt.sign({ phone, role, purpose: 'signup' }, process.env.JWT_SECRET, { expiresIn: '15m' });
+const verifiedPhone = (signupToken, role, fallback) => {
+  if (!signupToken) return fallback;
+  try {
+    const t = jwt.verify(signupToken, process.env.JWT_SECRET);
+    if (t.purpose === 'signup' && t.role === role) return t.phone;
+  } catch { /* fall through */ }
+  throw new ApiError(401, 'Phone verification expired. Please log in again.');
+};
 /** A phone may be reused across modules (OEM, service company, engineer, customer) but not twice in the same one. */
 const requirePhone = async (role, phone) => {
   if (!/^\d{10}$/.test(String(phone || ''))) throw new ApiError(400, 'Enter a valid 10-digit phone number');
@@ -35,7 +45,8 @@ const requirePhone = async (role, phone) => {
 };
 
 exports.registerCustomer = asyncHandler(async (req, res) => {
-  const { name, phone, email } = req.body;
+  const { name, email } = req.body;
+  const phone = verifiedPhone(req.body.signupToken, 'customer', req.body.phone);
   if (!name) throw new ApiError(400, 'Name is required');
   await requirePhone('customer', phone);
   const c = await Customer.create({ name, phone, email, passwordHash: await randomHash() });
@@ -47,6 +58,7 @@ exports.registerCompany = asyncHandler(async (req, res) => {
   const { type, company = {}, owner = {} } = req.body;
   if (!['oem', 'vendor'].includes(type)) throw new ApiError(400, 'type must be oem or vendor');
   if (!company.legalName) throw new ApiError(400, 'Company name is required');
+  if (type === 'vendor') owner.phone = verifiedPhone(owner.signupToken, 'vendor_owner', owner.phone);
   await requirePhone(type === 'oem' ? 'oem' : 'vendor_owner', owner.phone);
   const Model = type === 'oem' ? Oem : Vendor;
   const allowed = ['legalName', 'address', 'city', 'gstin', 'authorizedBrands', ...(type === 'vendor' ? ['serviceAreas', 'isBackup'] : [])];
@@ -60,7 +72,8 @@ exports.registerCompany = asyncHandler(async (req, res) => {
 });
 
 exports.registerEngineer = asyncHandler(async (req, res) => {
-  const { name, phone, email, city, skills = [], certifications = [], serviceTerritories = [] } = req.body;
+  const { name, email, city, skills = [], certifications = [], serviceTerritories = [] } = req.body;
+  const phone = verifiedPhone(req.body.signupToken, 'engineer', req.body.phone);
   if (!name) throw new ApiError(400, 'Name is required');
   await requirePhone('engineer', phone);
   await Engineer.create({ name, phone, email, passwordHash: await randomHash(), city, skills, certifications, serviceTerritories, engineerType: 'independent', status: 'pending' });
@@ -89,6 +102,15 @@ exports.login = asyncHandler(async (req, res) => {
   res.json({ token: sign(doc._id, role), user: publicUser(doc, role) });
 });
 
+/** Password portals (OEM): tells the login screen whether to ask for a password or show onboarding. */
+exports.checkAccount = asyncHandler(async (req, res) => {
+  const { role } = req.body;
+  const phone = String(req.body.phone || '').trim();
+  if (role !== 'oem') throw new ApiError(400, 'Not supported for this account type');
+  if (!/^\d{10}$/.test(phone)) throw new ApiError(400, 'Enter a valid 10-digit phone number');
+  res.json({ exists: !!(await Oem.exists({ phone })) });
+});
+
 const useDefaultOtp = () => process.env.USE_DEFAULT_OTP === 'true';
 const hashOtp = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
 
@@ -99,8 +121,7 @@ exports.sendOtp = asyncHandler(async (req, res) => {
   if (!OTP_ROLES.includes(role)) throw new ApiError(400, 'This account does not use OTP login');
   if (!/^\d{10}$/.test(phone)) throw new ApiError(400, 'Enter a valid 10-digit phone number');
   const doc = await MODEL_BY_ROLE[role].findOne({ phone });
-  if (!doc) throw new ApiError(404, 'No account found for this number. Please register first.');
-  assertCanSignIn(doc, role);
+  if (doc) assertCanSignIn(doc, role); // a new number still gets an OTP, then goes to onboarding
 
   if (!useDefaultOtp()) {
     const windowMs = (Number(process.env.OTP_RATE_WINDOW) || 600) * 1000;
@@ -129,9 +150,9 @@ exports.verifyOtp = asyncHandler(async (req, res) => {
     throw new ApiError(401, 'Incorrect OTP');
   }
   const doc = await MODEL_BY_ROLE[role].findOne({ phone });
-  if (!doc) throw new ApiError(404, 'No account found for this number');
-  assertCanSignIn(doc, role);
   await Otp.deleteMany({ role, phone });
+  if (!doc) return res.json({ isNew: true, signupToken: signSignup(phone, role) });
+  assertCanSignIn(doc, role);
   res.json({ token: sign(doc._id, role), user: publicUser(doc, role) });
 });
 

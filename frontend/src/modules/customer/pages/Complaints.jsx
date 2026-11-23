@@ -64,7 +64,7 @@ export default function Complaints() {
 
   if (step === 'describe') {
     return (
-      <Screen title="Describe the problem" subtitle="Speak or type — our assistant summarises it for you">
+      <Screen back={() => setStep('list')} title="Describe the problem" subtitle="Speak or type — our assistant summarises it for you">
         <form onSubmit={create} className="space-y-3">
           <Panel className="space-y-3">
             <Field label="Product">
@@ -85,7 +85,7 @@ export default function Complaints() {
 
   if (step === 'confirm') {
     return (
-      <Screen title="Confirm summary" subtitle="Check what we will tell the brand's customer care">
+      <Screen back={() => setStep('describe')} title="Confirm summary" subtitle="Check what we will tell the brand's customer care">
         <Panel className="space-y-3">
           <Field label="Complaint summary"><Textarea className="min-h-28" value={summary} onChange={(e) => setSummary(e.target.value)} /></Field>
           <label className="flex items-start gap-2 text-sm text-neutral-600">
@@ -101,7 +101,7 @@ export default function Complaints() {
   }
 
   return (
-    <Screen title="AI complaint assistant" subtitle="Register a complaint with the brand's customer care" action={<Button size="sm" onClick={() => setStep('describe')}><Plus className="h-4 w-4" /> New</Button>}>
+    <Screen back="/customer/home" title="AI complaint assistant" subtitle="Register a complaint with the brand's customer care" action={<Button size="sm" onClick={() => setStep('describe')}><Plus className="h-4 w-4" /> New</Button>}>
       {!data?.items?.length && <Empty><Bot className="mx-auto mb-2 h-6 w-6" />No complaints yet. Tell us the problem and we'll raise it with the brand.</Empty>}
       {(data?.items || []).map((c) => (
         <Panel key={c._id}>

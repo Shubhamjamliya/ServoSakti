@@ -9,7 +9,7 @@ const schema = new Schema({
   passwordHash: { type: String, required: true, select: false },
   engineerType: { type: String, enum: ['company', 'independent'], default: 'company' },
   skills: [String], certifications: [{ brand: String, docUrl: String }],
-  city: String, serviceTerritories: [String],
+  city: String, serviceTerritories: [String], serviceZones: [{ type: Schema.Types.ObjectId, ref: 'Zone' }],
   available: { type: Boolean, default: true }, active: { type: Boolean, default: true },
   fcmTokens: [{ type: String, select: false }],
   status: { type: String, enum: ['pending', 'approved', 'suspended', 'rejected'], default: 'pending' },

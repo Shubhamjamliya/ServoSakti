@@ -6,14 +6,15 @@ import { useApi } from '@/shared/lib/useApi';
 import { fmtDateTime } from '@/shared/lib/format';
 
 /** Shared by the Engineer and Customer apps. */
-export default function NotificationsScreen() {
+/** `back`: fallback path when this is not a bottom-nav tab (customer app). */
+export default function NotificationsScreen({ back }) {
   const { data, loading, reload } = useApi('/notifications');
   useEffect(() => {
     if (data?.unread) api('/notifications/read', { method: 'PATCH' }).then(reload).catch(() => {});
   }, [data?.unread, reload]);
 
   return (
-    <Screen title="Notifications">
+    <Screen title="Notifications" back={back}>
       {!loading && !data?.items?.length && <Empty>Nothing yet.</Empty>}
       <div className="space-y-2">
         {(data?.items || []).map((n) => (

@@ -3,6 +3,10 @@ const Payout = require('../models/Payout');
 const Dispute = require('../models/Dispute');
 const Incentive = require('../models/Incentive');
 const Engineer = require('../models/Engineer');
+const ServiceRequest = require('../models/ServiceRequest');
+const ProductPassport = require('../models/ProductPassport');
+const Subtype = require('../models/Subtype');
+const payments = require('../services/payment.service');
 const { ApiError, asyncHandler, paginate, istMonth } = require('../utils/helpers');
 const { notify, notifyAdmins, audit } = require('../services/realtime');
 
@@ -29,6 +33,21 @@ exports.payouts = asyncHandler(async (req, res) => {
   // Engineers see their own earnings only; hide the platform/vendor split from them.
   if (req.user.role === 'engineer') data.items = data.items.map(({ vendorAmount, platformFee, tax, rateSnapshot, ...rest }) => rest);
   res.json(data);
+});
+
+/** CSV of every payout the caller may see (company-wise scope applies), for accounts / invoicing. */
+exports.exportPayouts = asyncHandler(async (req, res) => {
+  const rows = await Payout.find(payoutScope(req)).populate(POP).sort({ createdAt: -1 }).lean();
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const head = ['SR', 'OEM', 'Service company', 'Engineer', 'Brand', 'Job type', 'Warranty', 'Distance km', 'Vendor amount', 'Engineer amount', 'Platform fee', 'Tax', 'Approval', 'Payment', 'Txn ref', 'Created'];
+  const hideSplit = req.user.role === 'engineer';
+  const lines = rows.map((r) => [
+    r.srNumber, r.oemId?.legalName, r.vendorId?.legalName, r.engineerId?.name, r.brand, r.jobType, r.warranty, r.distanceKm,
+    hideSplit ? '' : r.vendorAmount, r.engineerAmount, hideSplit ? '' : r.platformFee, hideSplit ? '' : r.tax, r.approval, r.paymentStatus, r.txnRef, r.createdAt?.toISOString(),
+  ]);
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="payouts.csv"');
+  res.send([head, ...lines].map((l) => l.map(esc).join(',')).join('\n'));
 });
 
 /** Admin actions on a payout: approve, hold, release (back to pending), mark paid. */
@@ -73,8 +92,17 @@ exports.listDisputes = asyncHandler(async (req, res) => {
   let filter = {};
   if (req.user.role === 'vendor_owner') filter = { vendorId: req.user.companyId };
   else if (req.user.role === 'engineer') filter = { engineerId: req.engineer._id };
+  else if (req.user.role === 'customer') filter = { customerId: req.customer._id };
   else if (req.user.role !== 'admin') filter = { _id: null };
-  res.json(await paginate(Dispute, filter, req, { search: ['srNumber', 'reason', 'raisedByName'], filters: ['status'] }));
+  res.json(await paginate(Dispute, filter, req, { search: ['srNumber', 'reason', 'raisedByName'], filters: ['status', 'kind'] }));
+});
+
+/** The vendor gives its side of a customer dispute. */
+exports.respondDispute = asyncHandler(async (req, res) => {
+  const d = await Dispute.findOneAndUpdate({ _id: req.params.id, vendorId: req.user.companyId, status: 'open' }, { vendorResponse: String(req.body.response || '').trim() }, { new: true });
+  if (!d) throw new ApiError(404, 'Dispute not found');
+  notifyAdmins('Vendor responded to dispute', `${d.srNumber}: ${d.vendorResponse}`, 'dispute');
+  res.json(d);
 });
 
 exports.createDispute = asyncHandler(async (req, res) => {
@@ -87,15 +115,78 @@ exports.createDispute = asyncHandler(async (req, res) => {
   res.status(201).json(d);
 });
 
+/**
+ * Admin decides. For a customer dispute the admin can refund part or all of what was paid and correct the product type,
+ * so the next booking shows the right price. The job's payout hold is lifted either way.
+ */
 exports.resolveDispute = asyncHandler(async (req, res) => {
   const { decision, outcome } = req.body;
   if (!['approved', 'rejected'].includes(decision)) throw new ApiError(400, 'decision must be approved or rejected');
-  const d = await Dispute.findByIdAndUpdate(req.params.id, { status: decision, outcome, resolvedBy: req.user.id }, { new: true });
+  const d = await Dispute.findById(req.params.id);
   if (!d) throw new ApiError(404, 'Dispute not found');
-  if (decision === 'approved') await Payout.updateOne({ _id: d.payoutId, approval: 'held' }, { approval: 'pending', holdReason: undefined });
-  audit(req.user, `dispute.${decision}`, 'Dispute', d._id, { outcome });
-  if (d.raisedBy) notify([d.raisedBy], `Dispute ${decision}`, `${d.srNumber}: ${outcome || ''}`, 'dispute');
+  if (d.status !== 'open') throw new ApiError(409, 'This dispute is already resolved');
+  Object.assign(d, { status: decision, outcome, resolvedBy: req.user.id });
+
+  if (d.kind === 'service') {
+    const sr = await ServiceRequest.findById(d.serviceRequestId);
+    if (decision === 'approved' && sr) {
+      const refund = Number(req.body.refundAmount) || 0;
+      if (refund > 0) {
+        await payments.syncBill(sr);
+        const net = (sr.bill?.paid || 0) - (sr.bill?.refunded || 0);
+        if (refund > net) throw new ApiError(400, `At most ₹${net} can be refunded on this job`);
+        d.refundAmount = await payments.refundServiceRequest(sr, refund, `Dispute ${d.srNumber}`);
+        await payments.syncBill(sr);
+        await sr.save();
+      }
+      if (req.body.correctedSubtypeId && sr.passportId) {
+        const subtype = await Subtype.findById(req.body.correctedSubtypeId).lean();
+        if (!subtype) throw new ApiError(400, 'Unknown product type');
+        await ProductPassport.updateOne({ _id: sr.passportId }, { subtypeId: subtype._id, subtypeName: subtype.name, category: subtype.category });
+        d.correctedSubtypeId = subtype._id;
+      }
+    }
+    await Payout.updateOne({ serviceRequestId: d.serviceRequestId, approval: 'held', holdReason: 'Customer dispute open' }, { approval: 'pending', holdReason: undefined });
+  } else if (decision === 'approved') {
+    await Payout.updateOne({ _id: d.payoutId, approval: 'held' }, { approval: 'pending', holdReason: undefined });
+  }
+  await d.save();
+  audit(req.user, `dispute.${decision}`, 'Dispute', d._id, { outcome, refund: d.refundAmount });
+  if (d.raisedBy) notify([d.raisedBy], `Dispute ${decision}`, `${d.srNumber}: ${outcome || ''}${d.refundAmount ? ` · ₹${d.refundAmount} refunded` : ''}`, 'dispute');
   res.json(d);
+});
+
+/* ---- monthly warranty claim to the OEM: every approved warranty job with its labour cost and covered parts ---- */
+const claimScope = (req) => (req.user.role === 'oem' ? { oemId: new mongoose.Types.ObjectId(req.user.companyId) } : {});
+
+exports.warrantyClaims = asyncHandler(async (req, res) => {
+  const filter = { ...claimScope(req), coverage: 'warranty', 'oemClaim.status': { $in: ['pending', 'approved', 'rejected'] } };
+  if (req.query.month) {
+    const from = new Date(`${req.query.month}-01T00:00:00+05:30`);
+    const to = new Date(from); to.setMonth(to.getMonth() + 1);
+    filter.approvedAt = { $gte: from, $lt: to };
+  }
+  if (req.query.status && req.query.status !== 'all') filter['oemClaim.status'] = req.query.status;
+  const data = await paginate(ServiceRequest, filter, req, { search: ['srNumber', 'serialNumber', 'brand'], sort: { approvedAt: -1 }, populate: [{ path: 'oemId', select: 'legalName' }] });
+  data.items = data.items.map((s) => ({
+    _id: s._id, srNumber: s.srNumber, oemName: s.oemId?.legalName, brand: s.brand, model: s.model, serialNumber: s.serialNumber, subtypeName: s.subtypeName, jobType: s.jobType,
+    approvedAt: s.approvedAt, nameplatePhoto: s.verification?.nameplatePhoto, parts: (s.parts || []).map((p) => `${p.name} × ${p.qty}`).join(', '), claim: s.oemClaim,
+  }));
+  const totals = await ServiceRequest.aggregate([{ $match: filter }, { $group: { _id: '$oemClaim.status', amount: { $sum: '$oemClaim.amount' }, jobs: { $sum: 1 } } }]);
+  res.json({ ...data, totals });
+});
+
+exports.decideClaim = asyncHandler(async (req, res) => {
+  const { decision, note } = req.body;
+  if (!['approved', 'rejected'].includes(decision)) throw new ApiError(400, 'decision must be approved or rejected');
+  const sr = await ServiceRequest.findOne({ _id: req.params.srId, ...claimScope(req), 'oemClaim.status': 'pending' });
+  if (!sr) throw new ApiError(404, 'Claim not found');
+  sr.oemClaim = { ...sr.oemClaim.toObject(), status: decision, decidedAt: new Date(), note };
+  await sr.save();
+  audit(req.user, `claim.${decision}`, 'ServiceRequest', sr._id, { note });
+  // a rejected line is reviewed by the admin; it is never charged back to the customer after the job is closed
+  if (decision === 'rejected') notifyAdmins('Warranty claim rejected', `${sr.srNumber}: ${note || 'no reason given'}`, 'claim');
+  res.json(sr.oemClaim);
 });
 
 /* ---- incentives (5 approved calls/month -> free 28-day recharge) ---- */

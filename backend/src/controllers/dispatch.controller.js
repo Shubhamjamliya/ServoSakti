@@ -35,7 +35,7 @@ exports.myOffers = asyncHandler(async (req, res) => {
   if (req.user.role === 'engineer') filter.candidateEngineerId = req.engineer._id;
   else filter.candidateCompanyId = req.user.companyId;
   const offers = await DispatchLog.find(filter).sort({ offeredAt: -1 }).lean();
-  const srs = await ServiceRequest.find({ _id: { $in: offers.map((o) => o.serviceRequestId) } }).select('srNumber brand model city jobType priority issue warranty').lean();
+  const srs = await ServiceRequest.find({ _id: { $in: offers.map((o) => o.serviceRequestId) } }).select('srNumber brand model city jobType priority issue warranty slot scheduledAt subtypeName coverage').lean();
   const map = new Map(srs.map((s) => [String(s._id), s]));
   res.json({ items: offers.map((o) => ({ ...o, sr: map.get(String(o.serviceRequestId)) })), total: offers.length });
 });

@@ -5,6 +5,8 @@ const ServiceRequest = require('../models/ServiceRequest');
 const DispatchLog = require('../models/DispatchLog');
 const DayLog = require('../models/DayLog');
 const Setting = require('../models/Setting');
+const Zone = require('../models/Zone');
+const Payment = require('../models/Payment');
 const { ApiError, ci, istDate, haversineKm } = require('../utils/helpers');
 const { notify, notifyAdmins, notifyCompany, audit } = require('./realtime');
 
@@ -18,10 +20,17 @@ const OPEN = ['assigned', 'in_progress', 'under_review'];
  */
 async function buildQueue(sr, settings) {
   const brandOk = (e) => !sr.brand || e.certifications.some((c) => c.brand && ci(sr.brand).test(c.brand));
-  const cityOk = (e) => !sr.city || (e.city && ci(sr.city).test(e.city)) || e.serviceTerritories.some((t) => ci(sr.city).test(t));
+  const zone = sr.zoneId ? await Zone.findById(sr.zoneId).lean() : null;
+  const maxKm = zone?.maxRadiusKm || settings.maxRadiusKm;
+  const inZone = (zones) => (zones || []).some((z) => String(z) === String(sr.zoneId));
+  // An engineer who has picked service zones is matched by zone; otherwise fall back to city / territories.
+  const cityOk = (e) => {
+    if (sr.zoneId && e.serviceZones?.length) return inZone(e.serviceZones);
+    return !sr.city || (e.city && ci(sr.city).test(e.city)) || e.serviceTerritories.some((t) => ci(sr.city).test(t));
+  };
   const radiusOk = (e) => {
     const d = haversineKm(e.location, sr.location);
-    return d === null || d <= settings.maxRadiusKm;
+    return d === null || d <= maxKm;
   };
 
   const loads = await ServiceRequest.aggregate([
@@ -29,12 +38,19 @@ async function buildQueue(sr, settings) {
     { $group: { _id: '$engineerId', n: { $sum: 1 } } },
   ]);
   const load = new Map(loads.map((l) => [String(l._id), l.n]));
+  // engineers holding more undeposited cash than the limit get no new jobs until they deposit it
+  const cashRows = await Payment.aggregate([
+    { $match: { provider: 'cash', status: 'paid', depositedAt: null } },
+    { $group: { _id: '$collectedBy', amount: { $sum: '$amount' } } },
+  ]);
+  const cashLimit = settings.pricing?.cashLimit || Infinity;
+  const overCash = new Set(cashRows.filter((r) => r.amount > cashLimit).map((r) => String(r._id)));
   const pending = await DispatchLog.find({ serviceRequestId: sr._id, outcome: { $in: ['rejected', 'timeout'] } }).lean();
   const skipEng = new Set(pending.map((p) => String(p.candidateEngineerId)));
   const skipCo = new Set(pending.map((p) => String(p.candidateCompanyId)));
 
   const eligible = (e) =>
-    brandOk(e) && cityOk(e) && radiusOk(e) && (load.get(String(e._id)) || 0) < settings.maxEngineerLoad && !skipEng.has(String(e._id));
+    brandOk(e) && cityOk(e) && radiusOk(e) && (load.get(String(e._id)) || 0) < settings.maxEngineerLoad && !skipEng.has(String(e._id)) && !overCash.has(String(e._id));
   const base = { status: 'approved', active: true, available: true };
   const byLoad = (a, b) => (load.get(String(a._id)) || 0) - (load.get(String(b._id)) || 0);
 
@@ -52,15 +68,15 @@ async function buildQueue(sr, settings) {
   (await Engineer.find({ ...base, engineerType: 'independent' }).lean()).filter(eligible).sort(byLoad).forEach((e) => push('engineer', e, 2));
 
   const auths = await Authorization.find({ oemId: sr.oemId, status: 'active' }).lean();
-  const approvedCompanies = new Set(
-    (await Vendor.find({ _id: { $in: auths.map((a) => a.vendorId) }, status: 'approved' }).select('_id').lean()).map((c) => String(c._id))
-  );
+  const approvedDocs = await Vendor.find({ _id: { $in: auths.map((a) => a.vendorId) }, status: 'approved' }).select('_id serviceZones').lean();
+  const approvedCompanies = new Set(approvedDocs.map((c) => String(c._id)));
+  const companyZones = new Map(approvedDocs.map((c) => [String(c._id), c.serviceZones]));
   const covers = (a) =>
     approvedCompanies.has(String(a.vendorId)) &&
     String(a.vendorId) !== String(sr.vendorId) &&
     !skipCo.has(String(a.vendorId)) &&
     (!sr.brand || a.brands.some((b) => ci(sr.brand).test(b)));
-  auths.filter((a) => !a.backup && covers(a) && (!sr.city || a.cities.some((c) => ci(sr.city).test(c)))).forEach((a) => push('company', { _id: a.vendorId }, 3));
+  auths.filter((a) => !a.backup && covers(a) && (!sr.city || a.cities.some((c) => ci(sr.city).test(c)) || (sr.zoneId && inZone(companyZones.get(String(a.vendorId)))))).forEach((a) => push('company', { _id: a.vendorId }, 3));
   auths.filter((a) => a.backup && covers(a)).forEach((a) => push('company', { _id: a.vendorId }, 4));
 
   return queue;
@@ -113,6 +129,7 @@ const assign = async (sr, eng, { origin, actorId, priority = 0, outcome = 'assig
     offeredAt: new Date(), respondedAt: new Date(), outcome, reason, actorId,
   });
   await notify([eng._id], 'Job assigned', `${sr.srNumber} · ${sr.brand || ''} ${sr.city || ''}`, 'assignment');
+  if (sr.customerId) await notify([sr.customerId], 'Engineer assigned', `${eng.name} will attend ${sr.srNumber}`, 'service');
 };
 
 async function acceptOffer(log, user, engineer, body = {}) {

@@ -8,3 +8,11 @@ export const getPosition = () =>
       { enableHighAccuracy: true, timeout: 15000 }
     );
   });
+
+/** Great-circle distance in km between two { lat, lng } points (null if either is missing). */
+export const haversineKm = (a, b) => {
+  if (a?.lat == null || b?.lat == null) return null;
+  const rad = (x) => (x * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+};

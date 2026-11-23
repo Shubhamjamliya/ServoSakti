@@ -21,6 +21,15 @@ export async function api(path, { method = 'GET', body } = {}) {
   return data;
 }
 
+/** Downloads a protected file (e.g. a CSV export) with the logged-in session's token. */
+export async function downloadFile(path, filename) {
+  const res = await fetch(BASE + path, { headers: { Authorization: `Bearer ${getSession(roleFromPath()).token}` } });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Download failed');
+  const url = URL.createObjectURL(await res.blob());
+  Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+  URL.revokeObjectURL(url);
+}
+
 export const qs = (params = {}) => {
   const p = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => v !== undefined && v !== null && v !== '' && v !== 'all' && p.set(k, v));

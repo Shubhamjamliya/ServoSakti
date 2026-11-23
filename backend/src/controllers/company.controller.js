@@ -52,7 +52,7 @@ exports.get = asyncHandler(async (req, res) => {
 /** The logged-in OEM / service company edits its own profile. Login phone and password are not changed here. */
 exports.updateMine = asyncHandler(async (req, res) => {
   const isVendor = req.user.role === 'vendor_owner';
-  const allowed = ['legalName', 'ownerName', 'address', 'city', 'email', 'gstin', 'authorizedBrands', 'kyc', ...(isVendor ? ['serviceAreas', 'isBackup'] : [])];
+  const allowed = ['legalName', 'ownerName', 'address', 'city', 'email', 'gstin', 'authorizedBrands', 'kyc', ...(isVendor ? ['serviceAreas', 'serviceZones', 'isBackup'] : [])];
   const patch = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
   const co = await (isVendor ? Vendor : Oem).findByIdAndUpdate(req.user.companyId, patch, { new: true, runValidators: true });
   res.json(co);

@@ -1,4 +1,4 @@
-export const BRAND = { name: 'Servoshakti', short: 'S' };
+export const BRAND = { name: 'Aftenza', short: 'A' };
 
 // panel key -> label, home route, the auth role allowed in, sidebar subtitle
 export const panels = {
@@ -16,6 +16,8 @@ export const sidebarMenus = {
     section('Catalog', [
       link('Products', 'Package', '/oem/products'),
       link('Warranty', 'ShieldCheck', '/oem/warranty'),
+      link('Warranty Verification', 'FileCheck', '/oem/warranty-verification'),
+      link('AMC / CMC Plans', 'Shield', '/oem/plans'),
     ]),
     section('Service', [
       link('Service Requests', 'Headset', '/oem/service-requests'),
@@ -24,6 +26,7 @@ export const sidebarMenus = {
     section('Network', [
       link('Vendors', 'Building2', '/oem/vendors'),
       link('Rate Cards', 'DollarSign', '/oem/rate-cards'),
+      link('Warranty Claims', 'Receipt', '/oem/warranty-claims'),
     ]),
     section('Insights', [link('Reports', 'BarChart3', '/oem/reports')]),
   ],
@@ -62,10 +65,15 @@ export const sidebarMenus = {
     section('Operations', [
       link('Service Requests', 'Headset', '/admin/service-requests'),
       link('Dispatch Log', 'Route', '/admin/dispatch'),
+      link('Service Zones', 'MapPin', '/admin/zones'),
       link('Quality', 'Star', '/admin/quality'),
       link('Disputes', 'AlertTriangle', '/admin/disputes'),
+      link('Product Approvals', 'FileCheck', '/admin/product-approvals'),
     ]),
     section('Finance', [
+      link('Pricing Catalogue', 'Tags', '/admin/pricing'),
+      link('Customer Payments', 'Wallet', '/admin/payments'),
+      link('Warranty Claims', 'ShieldCheck', '/admin/warranty-claims'),
       link('Rate Cards', 'DollarSign', '/admin/rate-cards'),
       link('Payouts', 'CreditCard', '/admin/payouts'),
       link('Settlements', 'Receipt', '/admin/settlements'),
@@ -75,6 +83,7 @@ export const sidebarMenus = {
     section('Communication', [link('Broadcast', 'Megaphone', '/admin/broadcast')]),
     section('System', [
       link('Business Setup', 'Briefcase', '/admin/business-setup'),
+      link('Customer App', 'Smartphone', '/admin/customer-app'),
       link('Settings', 'Settings', '/admin/settings'),
       link('Developer Settings', 'Code', '/admin/developer'),
     ]),

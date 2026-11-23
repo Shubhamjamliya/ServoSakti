@@ -5,25 +5,27 @@ const ServiceRequest = require('../models/ServiceRequest');
 const Payout = require('../models/Payout');
 const DayLog = require('../models/DayLog');
 const { ApiError, asyncHandler, paginate, istDate } = require('../utils/helpers');
+const { cashHeld } = require('../services/payment.service');
 const { notify, notifyAdmins, audit } = require('../services/realtime');
 
 const scope = (req) => (req.user.role === 'admin' ? {} : { companyId: req.user.companyId });
-const EDITABLE = ['name', 'skills', 'certifications', 'city', 'serviceTerritories', 'available', 'active', 'kyc'];
+const EDITABLE = ['name', 'skills', 'certifications', 'city', 'serviceTerritories', 'available', 'active', 'kyc', 'serviceZones'];
 const pick = (obj, keys) => Object.fromEntries(Object.entries(obj).filter(([k]) => keys.includes(k)));
 
 exports.list = asyncHandler(async (req, res) => {
   const data = await paginate(Engineer, scope(req), req, { search: ['name', 'phone', 'city'], filters: ['status', 'engineerType', 'companyId'], populate: { path: 'companyId', select: 'legalName' } });
   // live status for tracking: today's Day Start and calls currently open
   const ids = data.items.map((e) => e._id);
-  const [days, open] = await Promise.all([
+  const [days, cash, open] = await Promise.all([
     DayLog.find({ engineerId: { $in: ids }, date: istDate() }).lean(),
+    cashHeld(ids), // customer cash collected on site and not yet deposited
     ServiceRequest.aggregate([{ $match: { engineerId: { $in: ids }, status: { $in: ['assigned', 'in_progress', 'under_review'] } } }, { $group: { _id: '$engineerId', n: { $sum: 1 } } }]),
   ]);
   const dayMap = new Map(days.map((d) => [String(d.engineerId), d]));
   const openMap = new Map(open.map((o) => [String(o._id), o.n]));
   data.items = data.items.map((e) => {
     const day = dayMap.get(String(e._id));
-    return { ...e, companyName: e.companyId?.legalName, companyId: e.companyId?._id, dayStatus: !day ? 'Not started' : day.closedAt ? 'Closed' : 'Started', dayStartedAt: day?.startedAt, openCalls: openMap.get(String(e._id)) || 0 };
+    return { ...e, companyName: e.companyId?.legalName, companyId: e.companyId?._id, dayStatus: !day ? 'Not started' : day.closedAt ? 'Closed' : 'Started', dayStartedAt: day?.startedAt, openCalls: openMap.get(String(e._id)) || 0, cashHeld: cash.get(String(e._id)) || 0 };
   });
   res.json(data);
 });
@@ -75,7 +77,7 @@ exports.performance = asyncHandler(async (req, res) => {
 exports.me = asyncHandler(async (req, res) => res.json(req.engineer));
 
 exports.updateMe = asyncHandler(async (req, res) => {
-  const patch = pick(req.body, ['available', 'skills', 'city', 'serviceTerritories', 'certifications']);
+  const patch = pick(req.body, ['available', 'skills', 'city', 'serviceTerritories', 'serviceZones', 'certifications']);
   if (req.body.location) patch.location = { ...req.body.location, at: new Date() };
   res.json(await Engineer.findByIdAndUpdate(req.engineer._id, patch, { new: true }));
 });

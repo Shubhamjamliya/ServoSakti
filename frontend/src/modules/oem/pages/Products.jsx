@@ -35,6 +35,7 @@ export default function Products() {
         { name: 'model', label: 'Model' },
         { name: 'category', label: 'Category (e.g. Drive, UPS)' },
         { name: 'warrantyMonths', label: 'Standard warranty (months)', type: 'number' },
+        { name: 'subtypeId', label: 'Product type (decides the customer price)', type: 'remote', endpoint: '/catalog/subtypes', optionLabel: (o) => `${o.category} · ${o.name}`, required: false },
       ]}
     />
   );

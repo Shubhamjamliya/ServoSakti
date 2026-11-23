@@ -24,8 +24,11 @@ export default function Disputes() {
         refreshKey={version}
         columns={[
           { key: 'srNumber', label: 'SR' },
+          { key: 'kind', label: 'Type', render: (r) => (r.kind === 'service' ? 'Customer' : 'Payout') },
           { key: 'raisedByName', label: 'Raised by' },
-          { key: 'reason', label: 'Reason' },
+          { key: 'reason', label: 'Reason', render: (r) => [r.category, r.reason].filter(Boolean).join(': ') },
+          { key: 'vendorResponse', label: 'Vendor response', render: (r) => r.vendorResponse || '—' },
+          { key: 'refundAmount', label: 'Refund', render: (r) => (r.refundAmount ? `₹${r.refundAmount}` : '—') },
           { key: 'createdAt', label: 'Raised', render: (r) => fmtDate(r.createdAt), csv: (r) => fmtDate(r.createdAt) },
           { key: 'status', label: 'Status', render: (r) => <Badge>{humanize(r.status)}</Badge> },
           { key: 'outcome', label: 'Outcome', render: (r) => r.outcome || '—' },
@@ -43,7 +46,14 @@ export default function Disputes() {
         description={resolve?.row.reason} label="Outcome note" required destructive={resolve?.decision === 'rejected'}
         confirmLabel={resolve?.decision === 'approved' ? 'Approve' : 'Reject'}
         onConfirm={async (outcome) => {
-          await api(`/settlements/disputes/${resolve.row._id}`, { method: 'PATCH', body: { decision: resolve.decision, outcome } });
+          // a customer dispute decided in their favour can refund part or all of what they paid
+          let refundAmount = 0;
+          if (resolve.row.kind === 'service' && resolve.decision === 'approved') {
+            const v = window.prompt('Refund to the customer (₹). Enter 0 for no refund.', '0');
+            if (v === null) return;
+            refundAmount = Number(v) || 0;
+          }
+          await api(`/settlements/disputes/${resolve.row._id}`, { method: 'PATCH', body: { decision: resolve.decision, outcome, refundAmount } });
           toast.success(`Dispute ${resolve.decision}`);
           setVersion((v) => v + 1);
         }}

@@ -4,7 +4,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import ResourcePage from '@/shared/components/ResourcePage';
 import { api } from '@/shared/lib/api';
 import { useToast } from '@/shared/context/ToastContext';
-import { JOB_TYPES, WARRANTY_TYPES, labelOf } from '@/shared/lib/format';
+import { JOB_TYPES, PAYOUT_COVERAGE, labelOf } from '@/shared/lib/format';
 import { inr } from '@/shared/lib/utils';
 
 export default function RateCards() {
@@ -31,9 +31,10 @@ export default function RateCards() {
         { key: 'oemName', label: 'OEM' },
         { key: 'brand', label: 'Brand' },
         { key: 'jobType', label: 'Job type', render: (r) => labelOf(JOB_TYPES, r.jobType), csv: (r) => labelOf(JOB_TYPES, r.jobType) },
-        { key: 'warranty', label: 'Warranty', render: (r) => labelOf(WARRANTY_TYPES, r.warranty), csv: (r) => labelOf(WARRANTY_TYPES, r.warranty) },
+        { key: 'warranty', label: 'Coverage', render: (r) => labelOf(PAYOUT_COVERAGE, r.warranty), csv: (r) => labelOf(PAYOUT_COVERAGE, r.warranty) },
         { key: 'vendorPayout', label: 'Vendor payout', render: (r) => inr(r.vendorPayout) },
         { key: 'engineerPayout', label: 'Engineer payout', render: (r) => inr(r.engineerPayout) },
+        { key: 'independentEngineerPayout', label: 'Independent eng. payout', render: (r) => (r.independentEngineerPayout != null ? inr(r.independentEngineerPayout) : 'Same'), csv: (r) => r.independentEngineerPayout ?? '' },
         { key: 'platformFee', label: 'Platform fee', render: (r) => inr(r.platformFee) },
         { key: 'distanceSlabs', label: 'Distance slabs', render: (r) => (r.distanceSlabs || []).map((s) => `${s.fromKm}-${s.toKm}km +${s.amount}`).join(' · ') || '—', csv: (r) => (r.distanceSlabs || []).length },
         { key: 'active', label: 'Status', render: (r) => <Badge tone={r.active ? 'green' : 'gray'}>{r.active ? 'Active' : 'Inactive'}</Badge> },
@@ -43,9 +44,11 @@ export default function RateCards() {
         { name: 'oemId', label: 'OEM', type: 'remote', endpoint: '/companies', params: { type: 'oem', status: 'approved' } },
         { name: 'brand', label: 'Brand' },
         { name: 'jobType', label: 'Job type', type: 'select', options: JOB_TYPES },
-        { name: 'warranty', label: 'Warranty', type: 'select', options: WARRANTY_TYPES },
+        { name: 'warranty', label: 'Coverage of the job', type: 'select', options: PAYOUT_COVERAGE },
+        { name: 'subtypeId', label: 'Only for product type (optional)', type: 'remote', endpoint: '/catalog/subtypes', optionLabel: (o) => `${o.category} · ${o.name}`, required: false },
         { name: 'vendorPayout', label: 'Vendor payout (₹)', type: 'number' },
         { name: 'engineerPayout', label: 'Engineer payout (₹)', type: 'number' },
+        { name: 'independentEngineerPayout', label: 'Independent engineer payout (₹, optional)', type: 'number', required: false },
         { name: 'platformFee', label: 'Platform fee (₹)', type: 'number' },
         { name: 'slabFrom', label: 'Travel slab from (km)', type: 'number', required: false },
         { name: 'slabTo', label: 'Travel slab to (km)', type: 'number', required: false },

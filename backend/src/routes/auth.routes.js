@@ -3,6 +3,7 @@ const ctrl = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth.middleware');
 
 router.post('/login', ctrl.login);
+router.post('/check-account', ctrl.checkAccount);
 router.post('/send-otp', ctrl.sendOtp);
 router.post('/verify-otp', ctrl.verifyOtp);
 router.post('/register-customer', ctrl.registerCustomer);

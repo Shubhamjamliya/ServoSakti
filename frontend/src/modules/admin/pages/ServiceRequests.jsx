@@ -4,7 +4,7 @@ import { srColumns, useSrTools } from '@/shared/components/SrTools';
 import { JOB_TYPES, PRIORITIES, SR_STATUSES, WARRANTY_TYPES } from '@/shared/lib/format';
 
 export default function ServiceRequests() {
-  const tools = useSrTools({ verify: true, dispatch: true, assign: true, review: true, cancel: true });
+  const tools = useSrTools({ verify: true, dispatch: true, assign: true, review: true, cancel: true, fail: true });
   return (
     <>
       <ResourcePage

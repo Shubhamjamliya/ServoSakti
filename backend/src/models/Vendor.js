@@ -4,6 +4,7 @@ const companyFields = require('./companyFields');
 const schema = new mongoose.Schema({
   ...companyFields,
   serviceAreas: [String],
+  serviceZones: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Zone' }],
   isBackup: { type: Boolean, default: false }, // usable as priority-4 backup/emergency coverage
 }, { timestamps: true });
 

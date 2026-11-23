@@ -6,6 +6,7 @@ import Engineers from './pages/Engineers.jsx';
 import Customers from './pages/Customers.jsx';
 import ServiceRequests from './pages/ServiceRequests.jsx';
 import Dispatch from './pages/Dispatch.jsx';
+import Zones from './pages/Zones.jsx';
 import Quality from './pages/Quality.jsx';
 import Disputes from './pages/Disputes.jsx';
 import RateCards from './pages/RateCards.jsx';
@@ -15,8 +16,13 @@ import Incentives from './pages/Incentives.jsx';
 import Mis from './pages/Mis.jsx';
 import Settings from './pages/Settings.jsx';
 import BusinessSetup from './pages/BusinessSetup.jsx';
+import CustomerApp from './pages/CustomerApp.jsx';
 import Broadcast from './pages/Broadcast.jsx';
 import DeveloperSettings from './pages/DeveloperSettings.jsx';
+import PricingCatalog from './pages/PricingCatalog.jsx';
+import Payments from './pages/Payments.jsx';
+import ProductApprovals from './pages/ProductApprovals.jsx';
+import WarrantyClaims from '../oem/pages/WarrantyClaims.jsx';
 
 export const adminRoutes = (
   <Route path="/admin" element={<AppLayout panel="admin" />}>
@@ -32,9 +38,14 @@ export const adminRoutes = (
     <Route path="customers" element={<Customers />} />
     <Route path="service-requests" element={<ServiceRequests />} />
     <Route path="dispatch" element={<Dispatch />} />
+    <Route path="zones" element={<Zones />} />
     <Route path="quality" element={<Quality />} />
     <Route path="disputes" element={<Disputes />} />
     <Route path="rate-cards" element={<RateCards />} />
+    <Route path="pricing" element={<PricingCatalog />} />
+    <Route path="payments" element={<Payments />} />
+    <Route path="product-approvals" element={<ProductApprovals />} />
+    <Route path="warranty-claims" element={<WarrantyClaims />} />
     <Route path="payouts" element={<Payouts />} />
     <Route path="settlements" element={<Settlements />} />
     <Route path="incentives" element={<Incentives />} />
@@ -42,6 +53,7 @@ export const adminRoutes = (
     <Route path="broadcast" element={<Broadcast />} />
     <Route path="settings" element={<Settings />} />
     <Route path="business-setup" element={<BusinessSetup />} />
+    <Route path="customer-app" element={<CustomerApp />} />
     <Route path="developer" element={<DeveloperSettings />} />
   </Route>
 );

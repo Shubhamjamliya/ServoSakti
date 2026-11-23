@@ -34,6 +34,7 @@ function Field({ field, value, onChange }) {
     <Input
       {...common}
       type={field.type === 'tags' ? 'text' : field.type || 'text'}
+      pattern={field.pattern}
       placeholder={field.placeholder || (field.type === 'tags' ? 'Comma separated' : undefined)}
       onChange={(e) => onChange(field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
     />

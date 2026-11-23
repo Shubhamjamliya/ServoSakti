@@ -15,6 +15,7 @@ const AUTO = {
   pending: 'amber', 'under review': 'amber', 'at risk': 'amber', 'expiring soon': 'amber', created: 'amber', medium: 'amber',
   rejected: 'red', breached: 'red', expired: 'red', suspended: 'red', high: 'red', urgent: 'red', 'out of warranty': 'red', timeout: 'red', failed: 'red', unassigned: 'red', unpaid: 'amber', held: 'amber', cancelled: 'gray', escalated: 'red', draft: 'gray', confirmed: 'blue',
   low: 'gray', inactive: 'gray',
+  'awaiting payment': 'amber', 'part paid': 'amber', 'nothing to pay': 'gray', 'waiting for customer': 'amber', 'approved by customer': 'green', 'rejected by customer': 'red',
 };
 
 export function Badge({ children, tone, className }) {

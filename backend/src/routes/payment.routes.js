@@ -1,0 +1,14 @@
+const router = require('express').Router();
+const ctrl = require('../controllers/payment.controller');
+const { protect, allow } = require('../middleware/auth.middleware');
+
+router.post('/webhook', ctrl.webhook); // Razorpay → signed with PAYMENT_WEBHOOK_SECRET, no login
+
+router.use(protect);
+router.get('/config', ctrl.config);
+router.post('/verify', allow('customer'), ctrl.verify);
+router.get('/', allow('admin', 'customer'), ctrl.list);
+router.get('/cash-held', allow('admin'), ctrl.cashHeld);
+router.post('/cash-held/:engineerId/deposit', allow('admin'), ctrl.depositCash);
+
+module.exports = router;

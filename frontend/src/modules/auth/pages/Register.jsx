@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -21,12 +20,12 @@ function F({ id, label, ...props }) {
   );
 }
 
-export default function Register({ portal }) {
+/** Onboarding form for a new account. Rendered by Login once the phone is verified (or, for OEM, known to be new). */
+export default function Register({ portal, phone, signupToken, onBack }) {
   const cfg = AUTH_ROLES[portal];
   const type = TYPE_BY_PORTAL[portal];
   const brand = useBrand(cfg.role);
-  const nav = useNavigate();
-  const [f, setF] = useState({});
+  const [f, setF] = useState({ phone });
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,7 +36,7 @@ export default function Register({ portal }) {
     e.preventDefault();
     setError('');
     setBusy(true);
-    const owner = { name: f.name, phone: f.phone, email: f.email, password: f.password };
+    const owner = { name: f.name, phone, email: f.email, password: f.password, signupToken };
     try {
       if (type === 'customer') {
         const { token, user } = await api('/auth/register-customer', { method: 'POST', body: owner });
@@ -48,7 +47,7 @@ export default function Register({ portal }) {
       if (isCompany) {
         const res = await api('/auth/register-company', {
           method: 'POST',
-          body: { type, owner, company: { legalName: f.legalName, city: f.city, address: f.address, gstin: f.gstin, phone: f.phone, email: f.email, authorizedBrands: list(f.brands), serviceAreas: list(f.areas) } },
+          body: { type, owner, company: { legalName: f.legalName, city: f.city, address: f.address, gstin: f.gstin, phone, email: f.email, authorizedBrands: list(f.brands), serviceAreas: list(f.areas) } },
         });
         setDone(res.message);
       } else {
@@ -66,20 +65,20 @@ export default function Register({ portal }) {
       <div className="sf-rise w-full max-w-lg space-y-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-[0_30px_120px_-60px_rgba(0,0,0,0.28)]">
         <div className="flex items-center gap-3">
           <BrandMark role={cfg.role} />
-          <div><h1 className="text-lg font-semibold leading-tight">{cfg.label} sign up</h1><p className="text-[10px] uppercase tracking-wider text-neutral-500">{brand.name} FieldForce</p></div>
+          <div><h1 className="text-lg font-semibold leading-tight">{cfg.label} onboarding</h1><p className="text-[10px] uppercase tracking-wider text-neutral-500">{brand.name} FieldForce</p></div>
         </div>
 
         {done ? (
           <div className="space-y-4 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
             <p className="text-sm text-neutral-700">{done}</p>
-            <Button className="w-full" onClick={() => nav(`${cfg.base}/login`)}>Back to login</Button>
+            <Button className="w-full" onClick={onBack}>Back to login</Button>
           </div>
         ) : (
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
             {isCompany && <div className="sm:col-span-2"><F id="legalName" label="Company / legal name" required value={f.legalName || ''} onChange={set('legalName')} /></div>}
             <F id="name" label={isCompany ? 'Owner name' : 'Full name'} required value={f.name || ''} onChange={set('name')} />
-            <F id="phone" label="Mobile number (OTP login)" required inputMode="numeric" maxLength={10} placeholder="10 digits" value={f.phone || ''} onChange={set('phone')} />
+            <F id="phone" label="Mobile number" readOnly value={phone} className="bg-neutral-50" />
             <F id="email" label="Email" type="email" value={f.email || ''} onChange={set('email')} />
             {!cfg.otp && <F id="password" label="Password" type="password" required minLength={6} value={f.password || ''} onChange={set('password')} />}
             {type !== 'customer' && <F id="city" label="City" required value={f.city || ''} onChange={set('city')} />}
@@ -93,7 +92,7 @@ export default function Register({ portal }) {
             <Button className="sm:col-span-2" disabled={busy}>{busy ? 'Creating account...' : 'Create account'}</Button>
           </form>
         )}
-        <p className="text-center text-sm text-neutral-500">Already registered? <Link to={`${cfg.base}/login`} className="text-primary underline">Log in</Link></p>
+        <p className="text-center text-sm text-neutral-500"><button type="button" onClick={onBack} className="text-primary underline">Use a different number</button></p>
       </div>
     </div>
   );

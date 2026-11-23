@@ -3,6 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
 import ResourcePage from '@/shared/components/ResourcePage';
+import ZonePicker from '@/shared/components/ZonePicker';
 import { api } from '@/shared/lib/api';
 import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
@@ -35,6 +36,7 @@ export default function Engineers() {
   const toast = useToast();
   const [version, setVersion] = useState(0);
   const [perf, setPerf] = useState(null);
+  const [zonesFor, setZonesFor] = useState(null);
 
   const toggle = async (row) => {
     try {
@@ -67,6 +69,7 @@ export default function Engineers() {
         rowActions={({ row }) => (
           <>
             <Button size="sm" variant="ghost" onClick={() => setPerf(row)}>Performance</Button>
+            <Button size="sm" variant="ghost" onClick={() => setZonesFor(row)}>Zones</Button>
             <Button size="sm" variant="outline" onClick={() => toggle(row)}>{row.active ? 'Deactivate' : 'Activate'}</Button>
           </>
         )}
@@ -82,6 +85,18 @@ export default function Engineers() {
         mapCreate={({ brands, ...rest }) => ({ ...rest, certifications: brands.map((brand) => ({ brand })) })}
       />
       <PerformanceDialog engineer={perf} onClose={() => setPerf(null)} />
+      <Dialog open={!!zonesFor} onOpenChange={(o) => !o && setZonesFor(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{zonesFor?.name} · service zones</DialogTitle></DialogHeader>
+          {zonesFor && (
+            <ZonePicker
+              selected={zonesFor.serviceZones || []}
+              hint="Jobs outside these zones are not offered to this engineer."
+              onSave={async (ids) => { await api(`/engineers/${zonesFor._id}`, { method: 'PATCH', body: { serviceZones: ids } }); setZonesFor(null); setVersion((v) => v + 1); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

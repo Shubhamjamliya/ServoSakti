@@ -2,7 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
-import { KeyValue, Panel, Screen } from '@/shared/components/Mobile';
+import { KeyValue, Panel, Screen, Section } from '@/shared/components/Mobile';
+import ZonePicker, { saveCoverage } from '@/shared/components/ZonePicker';
 import { api } from '@/shared/lib/api';
 import { useApi } from '@/shared/lib/useApi';
 import { loginPath } from '@/shared/constants/authRoles';
@@ -37,6 +38,9 @@ export default function Profile() {
         <KeyValue label="Brand certifications">{(e.certifications || []).map((c) => c.brand).join(', ')}</KeyValue>
         <KeyValue label="Profile status"><Badge>{humanize(e.status)}</Badge></KeyValue>
       </Panel>
+      <Section title="My service zones">
+        <Panel><ZonePicker selected={e.serviceZones || []} onSave={async (ids) => { await saveCoverage(ids); reload(); }} hint="Choose the zones you can travel to. Jobs in other zones will not be offered to you." /></Panel>
+      </Section>
       <Button variant="outline" className="w-full text-red-600" onClick={() => { const to = loginPath(user?.role); logout(); nav(to); }}><LogOut className="h-4 w-4" /> Logout</Button>
     </Screen>
   );

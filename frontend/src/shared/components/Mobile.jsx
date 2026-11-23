@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Badge } from '@/shared/components/ui/badge';
 import { cn } from '@/shared/lib/utils';
 import { humanize } from '@/shared/lib/format';
@@ -7,12 +7,36 @@ import { humanize } from '@/shared/lib/format';
 // Small building blocks for the phone-width Engineer/Customer screens.
 // They avoid tables/sidebars so each one maps cleanly onto a React Native View later.
 
-export const Screen = ({ title, subtitle, action, children }) => (
+/**
+ * Back button for pages that are not on the bottom nav bar.
+ *   to       where to go when there is no in-app page to return to (link opened directly, from a push, etc.)
+ *   onClick  for in-page sub-screens (a form inside a list page): replaces the history step
+ */
+export function BackButton({ to = '/', onClick, className }) {
+  const navigate = useNavigate();
+  const back = onClick || (() => (window.history.state?.idx > 0 ? navigate(-1) : navigate(to, { replace: true })));
+  return (
+    <button
+      type="button"
+      onClick={back}
+      aria-label="Back"
+      className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#e2e8f0] bg-white text-[#5d667a] transition hover:bg-[#f8fafc]', className)}
+    >
+      <ChevronLeft className="h-5 w-5" />
+    </button>
+  );
+}
+
+/** `back`: a fallback path, or a function for in-page sub-screens. Omit it on bottom-nav pages. */
+export const Screen = ({ title, subtitle, action, back, children }) => (
   <div className="space-y-4">
     <div className="flex items-start justify-between gap-3">
-      <div>
-        <h2 className="text-xl font-semibold text-neutral-900">{title}</h2>
-        {subtitle && <p className="text-sm text-neutral-500">{subtitle}</p>}
+      <div className="flex min-w-0 items-start gap-2.5">
+        {back && <BackButton {...(typeof back === 'function' ? { onClick: back } : { to: back })} />}
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold text-neutral-900">{title}</h2>
+          {subtitle && <p className="text-sm text-neutral-500">{subtitle}</p>}
+        </div>
       </div>
       {action}
     </div>

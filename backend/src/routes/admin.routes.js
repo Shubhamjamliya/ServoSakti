@@ -12,6 +12,8 @@ router.get('/mis', allow('admin'), ctrl.mis);
 router.get('/quality', allow('admin'), ctrl.quality);
 router.get('/settings', allow('admin'), ctrl.getSettings);
 router.put('/settings', allow('admin'), ctrl.updateSettings);
+router.get('/customer-home', allow('admin'), sys.getCustomerHome);
+router.put('/customer-home', allow('admin'), sys.updateCustomerHome);
 router.get('/business-setup', allow('admin'), sys.getBusinessSetup);
 router.put('/business-setup', allow('admin'), upload.fields(sys.LOGO_FIELDS.map((name) => ({ name, maxCount: 1 }))), sys.updateBusinessSetup);
 router.get('/developer', allow('admin'), sys.getDeveloper);

@@ -48,4 +48,19 @@ async function paginate(Model, filter, req, { search = [], filters = [], populat
   return { items, total, page, limit };
 }
 
-module.exports = { ApiError, asyncHandler, escapeRegex, ci, istDate, istMonth, haversineKm, warrantyStatus, paginate };
+/** Whole days until warranty ends: positive = remaining, negative = days since it expired, null = unknown. */
+const warrantyDaysLeft = (end) => (end ? Math.ceil((new Date(end) - Date.now()) / 86400000) : null);
+
+/** Ray-casting point-in-polygon. `polygon` is [{ latitude, longitude }]. */
+const pointInPolygon = (lat, lng, polygon) => {
+  if (!Array.isArray(polygon) || polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const { longitude: xi, latitude: yi } = polygon[i];
+    const { longitude: xj, latitude: yj } = polygon[j];
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+
+module.exports = { pointInPolygon, ApiError, asyncHandler, escapeRegex, ci, istDate, istMonth, haversineKm, warrantyStatus, warrantyDaysLeft, paginate };

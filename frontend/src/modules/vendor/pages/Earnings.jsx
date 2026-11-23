@@ -5,7 +5,8 @@ import { Badge } from '@/shared/components/ui/badge';
 import { PromptDialog } from '@/shared/components/Dialogs';
 import { MetricCard } from '@/shared/components/PageShell';
 import ResourcePage from '@/shared/components/ResourcePage';
-import { api } from '@/shared/lib/api';
+import { Download as DownloadIcon } from 'lucide-react';
+import { api, downloadFile } from '@/shared/lib/api';
 import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
 import { JOB_TYPES, labelOf } from '@/shared/lib/format';
@@ -23,6 +24,7 @@ export default function Earnings() {
         eyebrow="Finance"
         title="Earnings"
         endpoint="/settlements/payouts"
+        extraActions={<Button variant="outline" onClick={() => downloadFile('/settlements/export', 'earnings.csv').catch((e) => toast.error(e.message))}><DownloadIcon className="h-4 w-4" /> Export all (CSV)</Button>}
         filterKey="paymentStatus"
         filterLabel="All payments"
         filterOptions={[{ value: 'unpaid', label: 'Unpaid' }, { value: 'paid', label: 'Paid' }]}

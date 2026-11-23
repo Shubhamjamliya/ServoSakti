@@ -4,8 +4,9 @@ const { audit } = require('../services/realtime');
 
 // Each OEM owns its rate cards; there is deliberately no universal rate card.
 const scope = (req) => (req.user.role === 'admin' ? {} : { oemId: req.user.companyId });
-const FIELDS = ['brand', 'jobType', 'warranty', 'distanceSlabs', 'vendorPayout', 'engineerPayout', 'platformFee', 'active'];
-const pick = (obj) => Object.fromEntries(Object.entries(obj).filter(([k]) => FIELDS.includes(k)));
+const FIELDS = ['brand', 'subtypeId', 'jobType', 'warranty', 'distanceSlabs', 'vendorPayout', 'engineerPayout', 'independentEngineerPayout', 'platformFee', 'active'];
+// empty optional fields from the form mean "not set"
+const pick = (obj) => Object.fromEntries(Object.entries(obj).filter(([k, v]) => FIELDS.includes(k) && v !== ''));
 
 exports.list = asyncHandler(async (req, res) => {
   const data = await paginate(RateCard, scope(req), req, { search: ['brand'], filters: ['brand', 'jobType', 'warranty', 'oemId'], populate: { path: 'oemId', select: 'legalName' } });

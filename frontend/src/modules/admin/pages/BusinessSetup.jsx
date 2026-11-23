@@ -11,7 +11,8 @@ import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
 
 const TEXT = [
-  ['companyName', 'Company name', 'sm:col-span-2'],
+  ['companyName', 'Company / app name', 'sm:col-span-2'],
+  ['appTagline', 'App tagline (shown under the name in the customer app)', 'sm:col-span-2'],
   ['email', 'Email'],
   ['phoneNumber', 'Phone number'],
   ['address', 'Address', 'sm:col-span-2'],
@@ -24,7 +25,7 @@ const LOGOS = [
   ['oemLogo', 'OEM logo', 'OEM portal'],
   ['vendorLogo', 'Service company logo', 'Service company portal'],
   ['engineerLogo', 'Engineer logo', 'Engineer app'],
-  ['customerLogo', 'Customer logo', 'Customer app'],
+  ['customerLogo', 'Customer logo', 'Customer app header — upload the mark only; the name is shown as text'],
   ['favicon', 'Favicon', 'Browser tab icon (square)'],
 ];
 
