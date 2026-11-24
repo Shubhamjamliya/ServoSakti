@@ -6,7 +6,7 @@ const DispatchLog = require('../models/DispatchLog');
 const DayLog = require('../models/DayLog');
 const Setting = require('../models/Setting');
 const Zone = require('../models/Zone');
-const Payment = require('../models/Payment');
+const Wallet = require('../models/Wallet');
 const { ApiError, ci, istDate, haversineKm } = require('../utils/helpers');
 const { notify, notifyAdmins, notifyCompany, audit } = require('./realtime');
 
@@ -38,13 +38,11 @@ async function buildQueue(sr, settings) {
     { $group: { _id: '$engineerId', n: { $sum: 1 } } },
   ]);
   const load = new Map(loads.map((l) => [String(l._id), l.n]));
-  // engineers holding more undeposited cash than the limit get no new jobs until they deposit it
-  const cashRows = await Payment.aggregate([
-    { $match: { provider: 'cash', status: 'paid', depositedAt: null } },
-    { $group: { _id: '$collectedBy', amount: { $sum: '$amount' } } },
-  ]);
-  const cashLimit = settings.pricing?.cashLimit || Infinity;
-  const overCash = new Set(cashRows.filter((r) => r.amount > cashLimit).map((r) => String(r._id)));
+  // engineers holding more customer cash than the limit get no new jobs until they hand it over / deposit it
+  const cashLimit = settings.pricing?.cashLimit;
+  const overCash = new Set(cashLimit
+    ? (await Wallet.find({ ownerType: 'engineer', cashHeld: { $gt: Math.round(cashLimit * 100) } }).select('ownerId').lean()).map((w) => String(w.ownerId))
+    : []);
   const pending = await DispatchLog.find({ serviceRequestId: sr._id, outcome: { $in: ['rejected', 'timeout'] } }).lean();
   const skipEng = new Set(pending.map((p) => String(p.candidateEngineerId)));
   const skipCo = new Set(pending.map((p) => String(p.candidateCompanyId)));
@@ -129,6 +127,8 @@ const assign = async (sr, eng, { origin, actorId, priority = 0, outcome = 'assig
     offeredAt: new Date(), respondedAt: new Date(), outcome, reason, actorId,
   });
   await notify([eng._id], 'Job assigned', `${sr.srNumber} · ${sr.brand || ''} ${sr.city || ''}`, 'assignment');
+  // manual assignment by the admin: the engineer's service company should know too
+  if (outcome === 'override' && eng.companyId) await notifyCompany(eng.companyId, 'Engineer assigned by admin', `${sr.srNumber} assigned to ${eng.name}`, 'new_call');
   if (sr.customerId) await notify([sr.customerId], 'Engineer assigned', `${eng.name} will attend ${sr.srNumber}`, 'service');
 };
 

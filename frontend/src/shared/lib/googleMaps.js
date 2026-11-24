@@ -2,6 +2,8 @@
 // Key: VITE_GOOGLE_MAPS_API_KEY in frontend/.env  (enable Maps JavaScript, Places and Geocoding APIs).
 export const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 export const mapsEnabled = Boolean(MAPS_KEY);
+// Optional vector Map ID (Google Cloud → Maps → Map management). With it, the live map can rotate to the direction of travel.
+export const MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID;
 
 let pending = null;
 

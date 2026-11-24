@@ -88,7 +88,7 @@ export default function Register({ portal, phone, signupToken, onBack }) {
             {(type === 'vendor' || type === 'engineer') && <div className="sm:col-span-2"><F id="areas" label="Service cities / territories" placeholder="Comma separated" value={f.areas || ''} onChange={set('areas')} /></div>}
             {type === 'engineer' && <div className="sm:col-span-2"><F id="skills" label="Skills" placeholder="e.g. drives, UPS, PLC" value={f.skills || ''} onChange={set('skills')} /></div>}
             {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
-            {type !== 'customer' && <p className="text-xs text-neutral-500 sm:col-span-2">Accounts are activated after Servoshakti verifies your KYC and details.</p>}
+            {type !== 'customer' && <p className="text-xs text-neutral-500 sm:col-span-2">Accounts are activated after the platform verifies your KYC and details.</p>}
             <Button className="sm:col-span-2" disabled={busy}>{busy ? 'Creating account...' : 'Create account'}</Button>
           </form>
         )}

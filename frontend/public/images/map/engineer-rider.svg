@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="84" viewBox="0 0 100 84">
+  <!-- Map marker for the engineer: side view of a service engineer (yellow hard hat, hi-vis vest) riding a scooter
+       with a toolbox on the back, in Aftenza blue. Facing right. Anchor = ground point under the scooter (50, 80). -->
+  <ellipse cx="51" cy="79.5" rx="40" ry="3.6" fill="#0b1324" opacity="0.2"/>
+
+  <!-- wheels -->
+  <circle cx="24" cy="68" r="10" fill="#1f2937"/>
+  <circle cx="24" cy="68" r="5.4" fill="#e2e8f0"/>
+  <circle cx="24" cy="68" r="2" fill="#64748b"/>
+  <circle cx="78" cy="68" r="10" fill="#1f2937"/>
+  <circle cx="78" cy="68" r="5.4" fill="#e2e8f0"/>
+  <circle cx="78" cy="68" r="2" fill="#64748b"/>
+
+  <!-- toolbox on the carrier: red metal box, handle, spanner and screwdriver sticking out -->
+  <path d="M20 22 L24 15.5" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="24.8" cy="14.2" r="3.2" fill="none" stroke="#94a3b8" stroke-width="2.4"/>
+  <path d="M31 22 L32.5 14" stroke="#f59e0b" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M32.6 14 L33 10.5" stroke="#cbd5e1" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M19 24 V20.5 C19 18.8 20.2 18 21.8 18 H30.2 C31.8 18 33 18.8 33 20.5 V24" fill="none" stroke="#1f2937" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="12" y="23" width="28" height="21" rx="3" fill="#dc2626"/>
+  <rect x="12" y="23" width="28" height="6" rx="3" fill="#b91c1c"/>
+  <rect x="12" y="27" width="28" height="2.2" fill="#991b1b"/>
+  <rect x="23" y="27.2" width="6" height="4" rx="1" fill="#fbbf24"/>
+  <rect x="15" y="33" width="22" height="2" rx="1" fill="#f87171" opacity="0.7"/>
+  <rect x="13" y="43.5" width="26" height="3" rx="1.5" fill="#1f2937"/>
+
+  <!-- scooter rear body over the back wheel -->
+  <path d="M9 63 C9 52 17 46.5 29 46.5 H52 C55.5 46.5 57.5 49 57.5 52 V60.5 H35 C33 55 29 53.5 24 53.5 C17.5 53.5 13 57 12 63 Z" fill="#1456d8"/>
+  <path d="M14 52 C17 49.5 22 48.5 28 48.5" fill="none" stroke="#5b8def" stroke-width="2" stroke-linecap="round"/>
+  <!-- seat -->
+  <path d="M29.5 47 H53 C53 44 50.5 42.5 47 42.5 H33 C30.5 42.5 29 44.5 29.5 47 Z" fill="#1f2937"/>
+  <!-- floorboard -->
+  <rect x="34" y="58.5" width="32" height="5" rx="2.5" fill="#334155"/>
+  <!-- front leg shield + steering column -->
+  <path d="M61 64 L69.5 37 H76.5 L69.5 64 Z" fill="#1456d8"/>
+  <path d="M71 40 L73.5 40" stroke="#5b8def" stroke-width="2" stroke-linecap="round"/>
+  <!-- front mudguard -->
+  <path d="M66.5 63 C67.5 56.5 72.5 54 78 54 C83.5 54 88 57 89.5 62.5" fill="none" stroke="#1456d8" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- handlebar -->
+  <path d="M71 38 L67.5 29" stroke="#1f2937" stroke-width="3" stroke-linecap="round"/>
+  <path d="M63.5 29 H71" stroke="#1f2937" stroke-width="3.2" stroke-linecap="round"/>
+  <!-- headlight / tail light -->
+  <ellipse cx="76.8" cy="42" rx="2.6" ry="3.2" fill="#fde68a" stroke="#f59e0b" stroke-width="1"/>
+  <rect x="8" y="55" width="3.2" height="4" rx="1.2" fill="#ef4444"/>
+
+  <!-- engineer: work trousers + boot -->
+  <path d="M45 40.5 L57.5 44 L60 57" fill="none" stroke="#1e3a8a" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M58.5 58.8 H65.5 C66.3 58.8 66.8 59.3 66.8 60 V61 H58.5 Z" fill="#78350f"/>
+  <!-- torso: blue work shirt under an orange hi-vis vest with reflective stripes -->
+  <path d="M44.5 41 L52 23.5" stroke="#2f6fe8" stroke-width="10" stroke-linecap="round"/>
+  <path d="M45.6 39.5 L51.8 25" stroke="#f97316" stroke-width="7.2" stroke-linecap="round"/>
+  <path d="M45.8 34.2 L51.3 36.6" stroke="#e5e7eb" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M48 29 L53.4 31.3" stroke="#e5e7eb" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- arm (shirt sleeve) + glove on the handlebar -->
+  <path d="M53 25.5 L59.5 31.5 L65 29.5" fill="none" stroke="#2f6fe8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="65.5" cy="29.3" r="2.5" fill="#f59e0b"/>
+  <!-- neck + face -->
+  <rect x="52.5" y="18.5" width="4.2" height="5.5" rx="2" fill="#e8b48f"/>
+  <path d="M50.5 11 H60 V17.5 C60 20 58 21.5 55.5 21.5 C53 21.5 50.5 19.8 50.5 17 Z" fill="#f2c19b"/>
+  <circle cx="57.6" cy="14.4" r="0.9" fill="#1f2937"/>
+  <path d="M56.6 18.4 C57.6 18.9 58.6 18.8 59.3 18.2" fill="none" stroke="#9a3412" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M60 15 L61.3 16.6 L60 16.9" fill="#e8b48f"/>
+  <path d="M50.5 12.5 C50.5 14.5 50.8 16 51.5 17" fill="none" stroke="#3f2a1d" stroke-width="2" stroke-linecap="round"/>
+  <!-- yellow safety hard hat: dome, ridge and brim -->
+  <path d="M48.5 11.2 C48.5 5.5 52 2.8 55.8 2.8 C59.8 2.8 62.8 5.8 62.8 11.2 Z" fill="#facc15"/>
+  <path d="M55.6 3 V11" stroke="#eab308" stroke-width="1.6"/>
+  <path d="M46.8 11.2 H65.8 C66.3 11.2 66.6 11.7 66.3 12.1 L65.6 12.9 H47.5 C46.9 12.9 46.6 12.1 46.8 11.2 Z" fill="#eab308"/>
+  <path d="M51 6.5 C52 5.2 53.2 4.6 54.4 4.4" fill="none" stroke="#fef08a" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

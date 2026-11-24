@@ -89,7 +89,11 @@ function PricingSettings({ p, onChange }) {
           <Num label="No-show: wait at least (min)" value={p.noShowWaitMinutes} onChange={(v) => set('noShowWaitMinutes', v)} />
           <Num label="Engineer late after (min) → free cancel" value={p.lateArrivalMinutes} onChange={(v) => set('lateArrivalMinutes', v)} />
           <Num label="Cash limit per engineer (₹)" value={p.cashLimit} onChange={(v) => set('cashLimit', v)} />
-          <Num label="Dispute window (days)" value={p.disputeWindowDays} onChange={(v) => set('disputeWindowDays', v)} />
+          <div className="col-span-2">
+            <YesNo label="Customers can report a problem after a visit" value={p.disputesEnabled} onChange={(v) => set('disputesEnabled', v)} yes="On — within the window below" no="Off — the button is hidden" />
+          </div>
+          <Num label="Report-a-problem window (days after the visit)" value={p.disputeWindowDays} onChange={(v) => set('disputeWindowDays', v)} />
+          <Num label="Minimum withdrawal (₹, engineers & service companies)" value={p.minWithdrawal} onChange={(v) => set('minWithdrawal', v)} />
           <Num label="Repeat visit free within (days)" value={p.repeatVisitDays} onChange={(v) => set('repeatVisitDays', v)} />
           <Num label="Coverage on booking date honoured for (days)" value={p.coverageGraceDays} onChange={(v) => set('coverageGraceDays', v)} />
           <div className="col-span-2">

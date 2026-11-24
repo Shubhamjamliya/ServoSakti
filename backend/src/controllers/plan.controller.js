@@ -42,6 +42,15 @@ exports.subscriptions = asyncHandler(async (req, res) => {
   res.json(data);
 });
 
+/** Tax invoice PDF for a plan purchase. */
+exports.invoice = asyncHandler(async (req, res) => {
+  const sub = await PlanSubscription.findOne({ _id: req.params.id, ...(await scope(req)) }).lean();
+  if (!sub) throw new ApiError(404, 'Plan not found');
+  if (sub.status === 'pending_payment') throw new ApiError(409, 'The invoice is available once the plan is paid');
+  const customer = await require('../models/Customer').findById(sub.customerId).lean();
+  await require('../services/invoice.service').planInvoice(sub, customer, res);
+});
+
 /** Customer cancels their plan, or admin ends it (beyondRepair = product cannot be fixed, pro-rata refund only). */
 exports.cancel = asyncHandler(async (req, res) => {
   const sub = await PlanSubscription.findOne({ _id: req.params.id, ...(await scope(req)) });

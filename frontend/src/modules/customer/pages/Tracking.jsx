@@ -11,6 +11,7 @@ import { payWith } from '@/shared/lib/razorpay';
 import BillView, { CoverageBadge } from '@/shared/components/BillView';
 import { ENDED, customerAction, isActive } from '../srStatus.js';
 import { EndedNote, EngineerRow, SrPill, StepBar, Timeline } from '../components/SrParts.jsx';
+import { InvoiceButton, ReportProblem, WalletToggle, hasInvoice } from '../components/MoneyParts.jsx';
 
 /** SOP stage 7: the customer reads this code out to the engineer on site to confirm the work. */
 function OtpBox({ otp }) {
@@ -59,16 +60,20 @@ const BEFORE_VISIT = ['pending_payment', 'created', 'verified', 'offered', 'unas
 function MoneyBox({ r, onChange }) {
   const toast = useToast();
   const [busy, setBusy] = useState('');
-  const [panel, setPanel] = useState(''); // 'reschedule' | 'dispute'
+  const [panel, setPanel] = useState(''); // 'reschedule'
+  const [useWallet, setUseWallet] = useState(true);
+  const { data: wallet } = useApi('/wallet/me');
   const [when, setWhen] = useState('');
-  const [dispute, setDispute] = useState({ category: 'Wrong charge', reason: '' });
   const run = async (name, fn, ok) => {
     setBusy(name);
     try { await fn(); if (ok) toast.success(ok); setPanel(''); onChange(); } catch (e) { toast.error(e.message); } finally { setBusy(''); }
   };
   const quote = r.quote?.status === 'pending' ? r.quote : null;
 
-  const pay = () => run('pay', async () => { const { payment } = await api(`/service-requests/${r._id}/pay`, { method: 'POST' }); await payWith(payment); }, 'Payment received');
+  const pay = () => run('pay', async () => { const { payment } = await api(`/service-requests/${r._id}/pay`, { method: 'POST', body: { useWallet } }); if (payment) await payWith(payment); }, 'Payment received');
+  const dueNow = r.status === 'pending_payment' ? (r.bill?.upfront || r.bill?.due) : r.bill?.due;
+  const walletBal = wallet?.balance || 0;
+  const payLeft = Math.max(0, (dueNow || 0) - (useWallet ? walletBal : 0));
   const answer = (decision) => {
     if (decision === 'reject' && !window.confirm('Rejecting ends this visit. You pay only the visit charge and anything extra you paid is refunded. Reject?')) return;
     run(decision, () => api(`/service-requests/${r._id}/quote`, { method: 'POST', body: { decision } }), decision === 'approve' ? 'Approved. The engineer will continue.' : 'Revised price rejected');
@@ -78,7 +83,6 @@ function MoneyBox({ r, onChange }) {
     if (window.confirm(note)) run('cancel', () => api(`/service-requests/${r._id}/cancel`, { method: 'PATCH', body: { reason: 'Cancelled by customer' } }), 'Request cancelled');
   };
   const reschedule = () => run('reschedule', () => api(`/service-requests/${r._id}/reschedule`, { method: 'PATCH', body: { scheduledAt: new Date(when).toISOString() } }), 'Visit rescheduled');
-  const raiseDispute = () => run('dispute', () => api(`/service-requests/${r._id}/dispute`, { method: 'POST', body: dispute }), 'Dispute raised. We will get back within 72 hours.');
 
   return (
     <div className="space-y-3">
@@ -103,9 +107,10 @@ function MoneyBox({ r, onChange }) {
         </div>
       )}
 
+      {r.bill?.due > 0 && !quote && <WalletToggle balance={walletBal} checked={useWallet} onChange={setUseWallet} amount={dueNow} />}
       {r.bill?.due > 0 && !quote && (
         <button type="button" disabled={!!busy} onClick={pay} className="w-full rounded-xl bg-[#1456d8] py-2.5 text-[14px] font-bold text-white disabled:opacity-50">
-          {busy === 'pay' ? 'Opening payment...' : r.status === 'pending_payment' ? `Pay ${inr(r.bill.upfront || r.bill.due)} to confirm booking` : `Pay ${inr(r.bill.due)}`}
+          {busy === 'pay' ? 'Opening payment...' : payLeft <= 0 ? 'Pay from wallet' : r.status === 'pending_payment' ? `Pay ${inr(payLeft)} to confirm booking` : `Pay ${inr(payLeft)}`}
         </button>
       )}
 
@@ -122,18 +127,8 @@ function MoneyBox({ r, onChange }) {
         </div>
       )}
 
-      {['approved', 'failed'].includes(r.status) && (
-        <button type="button" onClick={() => setPanel(panel === 'dispute' ? '' : 'dispute')} className="text-[12.5px] font-semibold text-[#1456d8]">Report a problem with this visit</button>
-      )}
-      {panel === 'dispute' && (
-        <div className="space-y-2 rounded-2xl border border-[#e6ebf3] p-3">
-          <select value={dispute.category} onChange={(e) => setDispute((d) => ({ ...d, category: e.target.value }))} className="w-full rounded-xl border border-[#e6ebf3] px-3 py-2 text-[13px]">
-            {['Wrong charge', 'Work not done properly', 'Part not replaced', 'Engineer behaviour', 'Damage caused'].map((c) => <option key={c}>{c}</option>)}
-          </select>
-          <textarea rows={3} value={dispute.reason} onChange={(e) => setDispute((d) => ({ ...d, reason: e.target.value }))} placeholder="What went wrong?" className="w-full resize-none rounded-xl border border-[#e6ebf3] px-3 py-2 text-[13px]" />
-          <button type="button" disabled={!dispute.reason.trim() || !!busy} onClick={raiseDispute} className="w-full rounded-xl bg-[#1456d8] py-2 text-[13px] font-bold text-white disabled:opacity-50">Submit</button>
-        </div>
-      )}
+      {hasInvoice(r) && <InvoiceButton path={`/service-requests/${r._id}/invoice`} filename={`Invoice-${r.srNumber}.pdf`} />}
+      <ReportProblem r={r} onDone={onChange} />
     </div>
   );
 }

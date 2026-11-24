@@ -7,6 +7,7 @@ import { useApi } from '@/shared/lib/useApi';
 import { COVERAGE, JOB_TYPES, WARRANTY_TYPES, fmtDate, labelOf } from '@/shared/lib/format';
 import { ENDED } from '../srStatus.js';
 import { EndedNote, SrPill } from '../components/SrParts.jsx';
+import { InvoiceButton, ReportProblem, hasInvoice } from '../components/MoneyParts.jsx';
 
 /** Amount line with an expandable bill (lines, coverage, discount, GST, paid / refunded / due). */
 function BillToggle({ r }) {
@@ -31,7 +32,7 @@ function BillToggle({ r }) {
 const FINISHED = ['approved', 'closed', ...ENDED];
 
 export default function History() {
-  const { data, loading } = useApi('/service-requests?limit=100');
+  const { data, loading, reload } = useApi('/service-requests?limit=100');
   const done = (data?.items || []).filter((r) => FINISHED.includes(r.status));
 
   return (
@@ -71,6 +72,12 @@ export default function History() {
               {r.rating
                 ? <span className="inline-flex shrink-0 items-center gap-0.5 font-semibold text-[#0b1324]">{[1, 2, 3, 4, 5].map((n) => <Star key={n} className={n <= r.rating ? 'h-3.5 w-3.5 fill-amber-400 text-amber-400' : 'h-3.5 w-3.5 text-[#d6dce7]'} />)}</span>
                 : r.status === 'approved' && <Link to={`/customer/tracking#${r._id}`} className="shrink-0 font-semibold text-[#1456d8]">Rate service</Link>}
+            </div>
+          )}
+          {(hasInvoice(r) || r.status !== 'cancelled') && (
+            <div className="mt-2 flex flex-wrap items-start justify-between gap-2">
+              {hasInvoice(r) && <InvoiceButton path={`/service-requests/${r._id}/invoice`} filename={`Invoice-${r.srNumber}.pdf`} />}
+              <div className="w-full"><ReportProblem r={r} onDone={reload} /></div>
             </div>
           )}
         </article>

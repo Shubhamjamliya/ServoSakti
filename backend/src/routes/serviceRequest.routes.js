@@ -13,6 +13,7 @@ router.patch('/:id/verify', allow('admin', 'oem'), ctrl.verify);
 router.patch('/:id/cancel', allow('admin', 'oem', 'customer'), ctrl.cancel);
 router.post('/:id/confirm-closure', allow('customer'), ctrl.confirmClosure);
 router.post('/:id/pay', allow('customer'), ctrl.pay);
+router.get('/:id/invoice', ctrl.invoice);
 router.post('/:id/quote', allow('customer'), ctrl.respondQuote);
 router.patch('/:id/reschedule', allow('customer'), ctrl.reschedule);
 router.post('/:id/dispute', allow('customer'), ctrl.dispute);

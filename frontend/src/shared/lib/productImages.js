@@ -12,6 +12,9 @@ export function resolveProductImage(p) {
 
   const text = `${p?.brand || ''} ${p?.model || ''} ${p?.category || ''}`.toLowerCase();
 
+  if (text.includes('battery') || text.includes(' ah') || text.includes('tubular')) {
+    return '/images/products/battery.svg';
+  }
   if (text.includes('generator') || text.includes('dg set') || text.includes('dg-set') || text.includes('dg9') || text.includes('ss-125')) {
     return '/images/products/dg-set.png';
   }

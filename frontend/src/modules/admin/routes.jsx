@@ -23,6 +23,10 @@ import PricingCatalog from './pages/PricingCatalog.jsx';
 import Payments from './pages/Payments.jsx';
 import ProductApprovals from './pages/ProductApprovals.jsx';
 import WarrantyClaims from '../oem/pages/WarrantyClaims.jsx';
+import Coupons from './pages/Coupons.jsx';
+import Refunds from './pages/Refunds.jsx';
+import Withdrawals from './pages/Withdrawals.jsx';
+import Wallets from './pages/Wallets.jsx';
 
 export const adminRoutes = (
   <Route path="/admin" element={<AppLayout panel="admin" />}>
@@ -46,6 +50,10 @@ export const adminRoutes = (
     <Route path="payments" element={<Payments />} />
     <Route path="product-approvals" element={<ProductApprovals />} />
     <Route path="warranty-claims" element={<WarrantyClaims />} />
+    <Route path="coupons" element={<Coupons />} />
+    <Route path="refunds" element={<Refunds />} />
+    <Route path="withdrawals" element={<Withdrawals />} />
+    <Route path="wallets" element={<Wallets />} />
     <Route path="payouts" element={<Payouts />} />
     <Route path="settlements" element={<Settlements />} />
     <Route path="incentives" element={<Incentives />} />

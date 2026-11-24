@@ -9,12 +9,13 @@ const schema = new Schema({
   serviceRequestId: { ...ref('ServiceRequest'), index: true }, subscriptionId: ref('PlanSubscription'),
   amount: { type: Number, required: true }, // rupees
   currency: { type: String, default: 'INR' },
-  provider: { type: String, enum: ['razorpay', 'mock', 'cash'], required: true },
+  provider: { type: String, enum: ['razorpay', 'mock', 'cash', 'wallet'], required: true },
   orderId: { type: String, index: true }, paymentId: String,
   status: { type: String, enum: ['created', 'paid', 'failed', 'expired'], default: 'created', index: true },
   paidAt: Date,
   refundedAmount: { type: Number, default: 0 },
-  refunds: [{ refundId: String, amount: Number, reason: String, status: String, at: Date }],
+  // method: 'source' = back to the card/UPI (or wallet, for wallet payments), 'wallet' = credited to the customer wallet
+  refunds: [{ refundId: String, amount: Number, reason: String, status: String, method: String, refundRequestId: Schema.Types.ObjectId, at: Date }],
   collectedBy: ref('Engineer'), // cash only
   depositedAt: Date, // cash handed over by the engineer
 }, { timestamps: true });

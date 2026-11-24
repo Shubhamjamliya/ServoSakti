@@ -28,6 +28,7 @@ import { useToast } from '@/shared/context/ToastContext';
 import { daysLeftText, fmtDate } from '@/shared/lib/format';
 import { cn, inr } from '@/shared/lib/utils';
 import { payWith } from '@/shared/lib/razorpay';
+import { InvoiceButton } from '../components/MoneyParts.jsx';
 import { resolveProductImage, WARRANTY_CONFIG } from '@/shared/lib/productImages';
 
 const EMPTY = { productId: '', subtypeId: '', brand: '', model: '', serialNumber: '', purchaseDate: '', warrantyEnd: '', invoiceUrl: '' };
@@ -55,8 +56,8 @@ function PlansPanel({ p }) {
     } catch (e) { toast.error(e.message); } finally { setBusy(''); }
   };
   const cancel = async (s) => {
-    if (!window.confirm('Cancel this plan? Full refund within 7 days if no visit was used, otherwise a pro-rata refund.')) return;
-    try { await api(`/plans/subscriptions/${s._id}/cancel`, { method: 'POST', body: {} }); toast.success('Plan cancelled'); subs.reload(); offers.reload(); } catch (e) { toast.error(e.message); }
+    if (!window.confirm('Cancel this plan? Full refund within 7 days if no visit was used, otherwise a pro-rata refund. You choose wallet or original payment in Wallet & refunds.')) return;
+    try { await api(`/plans/subscriptions/${s._id}/cancel`, { method: 'POST', body: {} }); toast.success('Plan cancelled. Choose where to get the refund in Wallet & refunds.'); subs.reload(); offers.reload(); } catch (e) { toast.error(e.message); }
   };
   return (
     <div className="space-y-2 pt-2">
@@ -64,7 +65,10 @@ function PlansPanel({ p }) {
         <div key={s._id} className="rounded-xl border border-sky-200 bg-sky-50 p-2.5">
           <p className="text-[12.5px] font-bold text-[#0b1324]">{s.planName} · active till {fmtDate(s.endDate)}</p>
           <p className="text-[11.5px] text-[#475467]">PM visits left: {s.pmVisitsLeft} of {s.pmVisitsTotal} · Breakdown cover from {fmtDate(s.breakdownFrom)}</p>
-          <button type="button" onClick={() => cancel(s)} className="mt-1 text-[11.5px] font-semibold text-red-700">Cancel plan</button>
+          <div className="mt-1 flex items-center gap-4">
+            <InvoiceButton path={`/plans/subscriptions/${s._id}/invoice`} filename={`Plan-invoice-${s._id}.pdf`} className="text-[11.5px]" label="Invoice" />
+            <button type="button" onClick={() => cancel(s)} className="text-[11.5px] font-semibold text-red-700">Cancel plan</button>
+          </div>
         </div>
       ))}
       {offers.data?.message && <p className="text-[11.5px] text-[#5d667a]">{offers.data.message}</p>}

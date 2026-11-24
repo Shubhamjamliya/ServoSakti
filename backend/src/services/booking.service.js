@@ -8,6 +8,7 @@ const Setting = require('../models/Setting');
 const { ApiError } = require('../utils/helpers');
 const { billForState, stateOf, resolveCoverage, money } = require('./pricing.service');
 const payments = require('./payment.service');
+const coupons = require('./coupon.service');
 const settlement = require('./settlement.service');
 const { notify, notifyAdmins, notifyCompany, audit } = require('./realtime');
 
@@ -178,6 +179,7 @@ async function cancelBooking(sr, user, reason) {
   await sr.save();
   await Payment.updateMany({ serviceRequestId: sr._id, status: 'created' }, { status: 'expired' });
   await DispatchLog.updateMany({ serviceRequestId: sr._id, outcome: 'pending' }, { outcome: 'rejected', reason: 'Request cancelled' });
+  await coupons.release(sr._id); // cancelled before the visit: the coupon use goes back
   if (fee > 0 && sr.engineerId) {
     const engineerAmount = money((fee * (pricing.cancellationEngineerShare || 0)) / 100);
     await Payout.create({
@@ -219,6 +221,14 @@ async function expireUnpaidBookings() {
     sr.cancellation = { by: 'system', at: new Date(), fee: 0, reason: 'Payment not completed' };
     await sr.save();
     await Payment.updateMany({ serviceRequestId: sr._id, status: 'created' }, { status: 'expired' });
+    await coupons.release(sr._id);
+    // nothing is billed for a booking that never started; anything paid from the wallet towards it is owed back
+    if (sr.bill) {
+      sr.bill = { lines: [], subtotal: 0, discount: 0, taxable: 0, gstPercent: sr.bill.gstPercent, gst: 0, total: 0, upfront: sr.bill.upfront };
+      sr.markModified('bill');
+      await payments.settleExcess(sr, 'Booking released before payment completed');
+    }
+    await sr.save();
     if (sr.customerId) await notify([sr.customerId], 'Booking released', `${sr.srNumber}: payment was not completed in time. Please book again.`, 'service');
   }
   return list.length;

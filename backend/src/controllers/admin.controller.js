@@ -22,7 +22,7 @@ exports.dashboard = asyncHandler(async (req, res) => {
     Engineer.countDocuments({ status: 'pending' }),
     Dispute.countDocuments({ status: 'open' }),
     ServiceRequest.countDocuments({ status: 'unassigned' }),
-    Payout.aggregate([{ $group: { _id: null, vendor: { $sum: '$vendorAmount' }, engineer: { $sum: '$engineerAmount' }, fee: { $sum: '$platformFee' }, unpaid: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'unpaid'] }, '$vendorAmount', 0] } } } }]),
+    Payout.aggregate([{ $group: { _id: null, vendor: { $sum: '$vendorAmount' }, engineer: { $sum: '$engineerAmount' }, fee: { $sum: '$platformFee' }, unpaid: { $sum: { $cond: [{ $ne: ['$approval', 'approved'] }, { $add: ['$vendorAmount', '$engineerAmount'] }, 0] } } } }]),
   ]);
   res.json({
     ...stats, oems, vendors, engineers, customers,
@@ -33,10 +33,14 @@ exports.dashboard = asyncHandler(async (req, res) => {
 
 /** Applications waiting for a decision, per account type (sidebar badges). */
 exports.pendingCounts = asyncHandler(async (req, res) => {
-  const [oems, vendors, engineers] = await Promise.all([
+  const [oems, vendors, engineers, refunds, withdrawals, deposits, payouts] = await Promise.all([
     Oem.countDocuments({ status: 'pending' }), Vendor.countDocuments({ status: 'pending' }), Engineer.countDocuments({ status: 'pending' }),
+    require('../models/RefundRequest').countDocuments({ status: 'pending_approval' }),
+    require('../models/Withdrawal').countDocuments({ status: 'requested' }),
+    require('../models/CashDeposit').countDocuments({ status: 'submitted' }),
+    require('../models/Payout').countDocuments({ approval: 'pending' }),
   ]);
-  res.json({ oems, vendors, engineers });
+  res.json({ oems, vendors, engineers, refunds, withdrawals, deposits, payouts });
 });
 
 exports.approvals = asyncHandler(async (req, res) => {

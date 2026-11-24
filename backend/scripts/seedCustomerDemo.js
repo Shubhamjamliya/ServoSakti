@@ -17,6 +17,8 @@ const Payment = require('../src/models/Payment');
 const Plan = require('../src/models/Plan');
 const PlanSubscription = require('../src/models/PlanSubscription');
 const Dispute = require('../src/models/Dispute');
+const RefundRequest = require('../src/models/RefundRequest');
+const CouponRedemption = require('../src/models/CouponRedemption');
 const Counter = require('../src/models/Counter');
 const Setting = require('../src/models/Setting');
 const { detectZone } = require('../src/services/zone.service');
@@ -40,6 +42,8 @@ const PRODUCTS = [
   { brand: 'Kirloskar', model: 'Monoblock Pump 1HP', serialNumber: 'WP771903', category: 'Pump', type: 'Monoblock Pump up to 1 HP', img: 'water-pump', bought: ago(30), months: 36 }, // in warranty, new
   // bought elsewhere, added by the customer: warranty waits for the invoice check, product type not yet checked on site
   { brand: 'LG', model: 'LG 2 Ton Dual Inverter AC', serialNumber: 'LGAC20887', category: 'Air Conditioner', type: 'Split AC 2.0 Ton', img: 'air-conditioner', bought: ago(20), months: 12, selfAdded: true },
+  // battery in warranty with no bookings yet: test a fresh booking with a coupon end to end
+  { brand: 'Aftenza', model: 'PowerTall TT150 150Ah Tubular Battery', serialNumber: 'BT150A7731', category: 'Inverter Battery', type: 'Tubular Battery 150 Ah', img: 'battery', ext: 'svg', bought: ago(120), months: 36 },
 ];
 
 (async () => {
@@ -78,6 +82,8 @@ const PRODUCTS = [
     Payment.deleteMany({ customerId: customer._id }),
     PlanSubscription.deleteMany({ customerId: customer._id }),
     Dispute.deleteMany({ customerId: customer._id }),
+    RefundRequest.deleteMany({ customerId: customer._id }),
+    CouponRedemption.deleteMany({ customerId: customer._id }),
     Notification.deleteMany({ userId: customer._id }),
   ]);
 
@@ -94,7 +100,7 @@ const PRODUCTS = [
     passports.push(await ProductPassport.create({
       customerId: customer._id, customerName: NAME, customerPhone: PHONE, productId: catalog?._id,
       warrantyNo: p.selfAdded ? undefined : `WR-${p.serialNumber}`, brand: p.brand, model: p.model, serialNumber: p.serialNumber,
-      purchaseDate: p.bought, warrantyStart: p.bought, warrantyEnd: end, images: [`/images/products/${p.img}.png`],
+      purchaseDate: p.bought, warrantyStart: p.bought, warrantyEnd: end, images: [`/images/products/${p.img}.${p.ext || 'png'}`],
       category: subtype.category, subtypeId: subtype._id, subtypeName: subtype.name,
       source: p.selfAdded ? 'self_added' : 'app', verified: !p.selfAdded, verifiedBy: p.selfAdded ? undefined : amit._id, verifiedAt: p.selfAdded ? undefined : ago(40),
       warrantyVerification: p.selfAdded ? 'pending' : 'approved', invoiceUrl: p.selfAdded ? `/images/products/${p.img}.png` : undefined,

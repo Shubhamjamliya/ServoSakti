@@ -29,7 +29,7 @@ export default function Settlements() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Billable to OEMs" value={v(t?.vendorAmount)} helper={`${t?.calls ?? 0} approved calls`} icon={Receipt} accent="bg-sky-100" />
         <MetricCard title="Engineer Payouts" value={v(t?.engineerAmount)} helper="Across all calls" icon={Wallet} accent="bg-green-100" />
-        <MetricCard title="Platform Fee" value={v(t?.platformFee)} helper="Servoshakti revenue" icon={CreditCard} accent="bg-amber-100" />
+        <MetricCard title="Platform Fee" value={v(t?.platformFee)} helper="Platform revenue" icon={CreditCard} accent="bg-amber-100" />
         <MetricCard title="GST on billing" value={v(t?.tax)} helper="At configured rate" icon={Percent} accent="bg-violet-100" />
       </div>
       <Card>

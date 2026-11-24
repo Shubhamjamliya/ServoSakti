@@ -43,13 +43,15 @@ const schema = new Schema({
   priceSnapshot: Schema.Types.Mixed, // every rate and setting used, frozen at booking so later price changes never touch it
   paymentStatus: { type: String, enum: ['not_required', 'pending', 'partial', 'paid'], default: 'not_required' },
   cashCollected: { type: Number, default: 0 },
+  payVersion: { type: Number, default: 0 }, // bumped inside every payment transaction: two at once conflict, one retries
   // on-site product check by the engineer
   verification: { nameplatePhoto: String, serialNumber: String, damageNote: String, damagePhotos: [String], at: Date },
   // revised quote waiting for the customer: { status, reason, changes, state, bill, oldTotal, newTotal, createdAt, expiresAt, respondedAt }
   quote: Schema.Types.Mixed,
   flags: [String], // reasons the job needs admin review before payout
   cancellation: { by: String, at: Date, fee: Number, reason: String },
-  oemClaim: { status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' }, amount: Number, decidedAt: Date, note: String },
+  // warranty job billed to the OEM: pending → approved / rejected by the OEM → paid (OEM settled the month)
+  oemClaim: { status: { type: String, enum: ['none', 'pending', 'approved', 'rejected', 'paid'], default: 'none' }, amount: Number, decidedAt: Date, note: String, paidAt: Date, paidRef: String },
 }, { timestamps: true });
 
 module.exports = mongoose.model('ServiceRequest', schema);

@@ -12,6 +12,7 @@ import Addresses from './pages/Addresses.jsx';
 import Terms from './pages/Terms.jsx';
 import Privacy from './pages/Privacy.jsx';
 import Support from './pages/Support.jsx';
+import Wallet from './pages/Wallet.jsx';
 
 export const customerRoutes = (
   <Route path="/customer" element={<CustomerLayout />}>
@@ -28,5 +29,6 @@ export const customerRoutes = (
     <Route path="terms" element={<Terms />} />
     <Route path="privacy" element={<Privacy />} />
     <Route path="support" element={<Support />} />
+    <Route path="wallet" element={<Wallet />} />
   </Route>
 );

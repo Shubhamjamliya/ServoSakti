@@ -18,6 +18,7 @@ import {
   Package,
   Phone,
   ShieldCheck,
+  Wallet as WalletIcon,
   Sparkles,
   Trash2,
   Upload,
@@ -323,6 +324,16 @@ export default function Profile() {
 
       {/* 3. Primary Sections: Saved Addresses & Activities */}
       <div className="rounded-2xl border border-[#e5ebf5] bg-white divide-y divide-[#f0f4fa] shadow-sm overflow-hidden text-[13px]">
+        <Link to="/customer/wallet" className="flex items-center justify-between p-3.5 hover:bg-[#fafbfd] transition">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><WalletIcon className="h-4 w-4" /></div>
+            <div>
+              <p className="font-semibold text-[#0b1324]">Wallet &amp; Refunds</p>
+              <p className="text-[11.5px] text-[#5d667a]">Balance, refunds and where to send them</p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-[#9aa5b8]" />
+        </Link>
         {/* Saved Addresses (Opens dedicated /customer/addresses page) */}
         <Link
           to="/customer/addresses"

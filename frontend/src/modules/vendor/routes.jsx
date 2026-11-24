@@ -9,6 +9,7 @@ import Tracking from './pages/Tracking.jsx';
 import Earnings from './pages/Earnings.jsx';
 import Disputes from './pages/Disputes.jsx';
 import Reports from './pages/Reports.jsx';
+import Wallet from './pages/Wallet.jsx';
 
 export const vendorRoutes = (
   <Route path="/vendor" element={<AppLayout panel="vendor" />}>
@@ -19,6 +20,7 @@ export const vendorRoutes = (
     <Route path="outside-requests" element={<OutsideRequests />} />
     <Route path="tracking" element={<Tracking />} />
     <Route path="earnings" element={<Earnings />} />
+    <Route path="wallet" element={<Wallet />} />
     <Route path="disputes" element={<Disputes />} />
     <Route path="reports" element={<Reports />} />
   </Route>

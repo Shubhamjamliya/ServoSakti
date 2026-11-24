@@ -23,14 +23,21 @@ export default function WarrantyClaims({ eyebrow = 'Finance' }) {
     try { await api(`/settlements/warranty-claims/${row._id}`, { method: 'PATCH', body: { decision, note } }); toast.success(`Claim ${decision}`); setVersion((v) => v + 1); } catch (e) { toast.error(e.message); }
   };
   const total = (status) => data?.totals?.find((t) => t._id === status) || { amount: 0, jobs: 0 };
+  const isAdmin = window.location.pathname.startsWith('/admin');
+  // admin: the OEM paid this month's approved claims → record it once for the whole month
+  const settle = async (row) => {
+    const reference = window.prompt(`${row.oemName}: payment reference (UTR) for approved claims of ${month}`);
+    if (!reference) return;
+    try { const r = await api('/settlements/warranty-claims/settle', { method: 'POST', body: { oemId: row.oemId, month, reference } }); toast.success(`${r.lines} claims · ${inr(r.amount)} marked paid`); setVersion((v) => v + 1); } catch (e) { toast.error(e.message); }
+  };
   return (
     <ResourcePage
       eyebrow={eyebrow} title="Warranty Claims" endpoint="/settlements/warranty-claims" params={{ month }} refreshKey={version}
-      filterKey="status" filterLabel="All lines" filterOptions={['pending', 'approved', 'rejected'].map((v) => ({ value: v, label: humanize(v) }))}
+      filterKey="status" filterLabel="All lines" filterOptions={['pending', 'approved', 'rejected', 'paid'].map((v) => ({ value: v, label: humanize(v) }))}
       extraActions={<Input type="month" className="w-40" value={month} onChange={(e) => setMonth(e.target.value)} />}
       header={(
         <div className="grid gap-3 sm:grid-cols-3">
-          {['pending', 'approved', 'rejected'].map((s) => (
+          {['pending', 'approved', 'paid'].map((s) => (
             <div key={s} className="rounded-xl border border-neutral-200 p-3">
               <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">{humanize(s)}</p>
               <p className="text-xl font-bold">{inr(total(s).amount)}</p>
@@ -50,10 +57,12 @@ export default function WarrantyClaims({ eyebrow = 'Finance' }) {
         { key: 'amount', label: 'Claim', render: (r) => inr(r.claim?.amount), csv: (r) => r.claim?.amount },
         { key: 'status', label: 'Status', render: (r) => <Badge>{humanize(r.claim?.status)}</Badge>, csv: (r) => r.claim?.status },
       ]}
-      rowActions={({ row }) => row.claim?.status === 'pending' && (
+      rowActions={({ row }) => (
         <>
-          <Button size="sm" onClick={() => decide(row, 'approved')}>Approve</Button>
-          <Button size="sm" variant="outline" className="text-red-600" onClick={() => decide(row, 'rejected')}>Reject</Button>
+          {row.claim?.status === 'pending' && <Button size="sm" onClick={() => decide(row, 'approved')}>Approve</Button>}
+          {row.claim?.status === 'pending' && <Button size="sm" variant="outline" className="text-red-600" onClick={() => decide(row, 'rejected')}>Reject</Button>}
+          {isAdmin && row.claim?.status === 'approved' && <Button size="sm" variant="outline" onClick={() => settle(row)}>OEM paid month</Button>}
+          {row.claim?.status === 'paid' && <span className="text-xs text-neutral-500">Paid · {row.claim.paidRef}</span>}
         </>
       )}
     />

@@ -65,7 +65,7 @@ export default function Profile() {
               <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="a">Address</Label><Input id="a" value={f.address} onChange={set('address')} /></div>
               <div className="space-y-1.5"><Label htmlFor="c">City</Label><Input id="c" value={f.city} onChange={set('city')} /></div>
               <div className="space-y-1.5"><Label htmlFor="g">GSTIN</Label><Input id="g" value={f.gstin} onChange={set('gstin')} /></div>
-              <div className="space-y-1.5"><Label htmlFor="p">Login phone</Label><Input id="p" value={f.phone} disabled title="This is your login id — contact Servoshakti to change it" /></div>
+              <div className="space-y-1.5"><Label htmlFor="p">Login phone</Label><Input id="p" value={f.phone} disabled title="This is your login id — contact support to change it" /></div>
               <div className="space-y-1.5"><Label htmlFor="e">Email</Label><Input id="e" type="email" value={f.email} onChange={set('email')} /></div>
               <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="s">Service areas (cities, comma separated)</Label><Input id="s" value={f.serviceAreas} onChange={set('serviceAreas')} /></div>
               <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="b">Brands you are certified for</Label><Input id="b" value={f.authorizedBrands} onChange={set('authorizedBrands')} /></div>

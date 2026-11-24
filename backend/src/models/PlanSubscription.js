@@ -14,7 +14,7 @@ const schema = new Schema({
   status: { type: String, enum: ['pending_payment', 'active', 'expired', 'cancelled'], default: 'pending_payment', index: true },
   paymentId: ref('Payment'),
   remindersSent: [String],
-  cancelledAt: Date, cancelReason: String, refundAmount: Number,
+  cancelledAt: Date, cancelReason: String, refundDue: Number, refundAmount: Number, // refundAmount = refunded after approval
 }, { timestamps: true });
 
 module.exports = mongoose.model('PlanSubscription', schema);

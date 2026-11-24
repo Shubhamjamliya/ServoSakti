@@ -5,6 +5,7 @@ const Setting = require('../models/Setting');
 const { ApiError } = require('../utils/helpers');
 const { withPayments, money } = require('./pricing.service');
 const { notify, notifyAdmins } = require('./realtime');
+const wallets = require('./wallet.service');
 
 /**
  * Razorpay (Orders API + Checkout). With RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET set, real orders are created and every
@@ -61,13 +62,15 @@ async function checkoutFor(payment, customer, description) {
 
 /** Marks a payment paid (idempotent) and runs what that payment unlocks. */
 async function markPaid(payment, razorpayPaymentId) {
-  if (payment.status === 'paid') return payment;
-  payment.status = 'paid';
-  payment.paidAt = new Date();
-  if (razorpayPaymentId) payment.paymentId = razorpayPaymentId;
-  await payment.save();
-  await onPaid(payment);
-  return payment;
+  // atomic: when the browser callback and the webhook arrive together, only one of them confirms the payment
+  const done = await Payment.findOneAndUpdate(
+    { _id: payment._id, status: { $ne: 'paid' } },
+    { status: 'paid', paidAt: new Date(), ...(razorpayPaymentId && { paymentId: razorpayPaymentId }) },
+    { new: true },
+  );
+  if (!done) return Payment.findById(payment._id);
+  await onPaid(done);
+  return done;
 }
 
 async function onPaid(payment) {
@@ -76,9 +79,11 @@ async function onPaid(payment) {
   const sr = await ServiceRequest.findById(payment.serviceRequestId);
   if (!sr) return null;
   await syncBill(sr);
-  if (sr.status === 'pending_payment') await require('./booking.service').confirmBooking(sr);
+  // a booking is confirmed only once the whole upfront amount is in (wallet part + online part)
+  const net = (sr.bill?.paid || 0) - (sr.bill?.refunded || 0);
+  if (sr.status === 'pending_payment' && net + 0.009 >= (sr.bill?.upfront || 0)) await require('./booking.service').confirmBooking(sr);
   else await sr.save();
-  if (sr.engineerId) await notify([sr.engineerId], 'Payment received', `${sr.srNumber}: ₹${payment.amount} paid online`, 'payment');
+  if (sr.engineerId) await notify([sr.engineerId], 'Payment received', `${sr.srNumber}: ₹${payment.amount} paid ${payment.provider === 'wallet' ? 'from wallet' : 'online'}`, 'payment');
   return sr;
 }
 
@@ -114,11 +119,15 @@ async function handleWebhook(rawBody, signature) {
   return { ok: true };
 }
 
-/** Refunds up to `amount` from one payment. Cash is never auto-refunded. */
-async function refundPayment(payment, amount, reason) {
+/**
+ * Refunds up to `amount` of one payment back to where it came from (Razorpay, or the wallet for wallet payments).
+ * Only called by refund.service after the admin approved; tagged with the refund request so a retry never repeats it.
+ */
+async function refundPayment(payment, amount, reason, { refundRequestId } = {}) {
   const room = money(payment.amount - (payment.refundedAmount || 0));
   const value = money(Math.min(amount, room));
   if (value <= 0 || payment.provider === 'cash') return 0;
+  if (refundRequestId && (payment.refunds || []).some((r) => String(r.refundRequestId) === String(refundRequestId))) return 0;
   let refundId = `mock_refund_${payment._id}_${(payment.refunds || []).length + 1}`;
   let status = 'processed';
   if (payment.provider === 'razorpay') {
@@ -126,25 +135,22 @@ async function refundPayment(payment, amount, reason) {
     refundId = r.id;
     status = r.status || 'pending';
   }
-  payment.refunds.push({ refundId, amount: value, reason, status, at: new Date() });
+  const entry = { refundId, amount: value, reason, status, method: 'source', refundRequestId, at: new Date() };
+  if (payment.provider === 'wallet') {
+    // the original payment was the wallet, so the money goes straight back there (one transaction)
+    entry.refundId = `wallet_${payment._id}_${refundRequestId || Date.now()}`;
+    await wallets.inTransaction(async (session) => {
+      payment.refunds.push(entry);
+      payment.refundedAmount = money((payment.refundedAmount || 0) + value);
+      await payment.save({ session });
+      await wallets.post([{ ownerType: 'customer', ownerId: payment.customerId, direction: 'credit', amount: value, kind: 'refund', key: `refund:${refundRequestId || payment._id}:${payment._id}`, refType: 'Payment', refId: payment._id, note: reason }], { session });
+    });
+    return value;
+  }
+  payment.refunds.push(entry);
   payment.refundedAmount = money((payment.refundedAmount || 0) + value);
   await payment.save();
   return value;
-}
-
-/** Refunds `amount` across the job's online payments, newest first. Anything left (cash) is flagged to the admin. */
-async function refundServiceRequest(sr, amount, reason) {
-  let left = money(amount);
-  if (left <= 0) return 0;
-  const payments = await Payment.find({ serviceRequestId: sr._id, status: 'paid', provider: { $in: ['razorpay', 'mock'] } }).sort({ paidAt: -1 });
-  for (const p of payments) {
-    if (left <= 0) break;
-    left = money(left - (await refundPayment(p, left, reason)));
-  }
-  const done = money(amount - left);
-  if (done > 0 && sr.customerId) await notify([sr.customerId], 'Refund initiated', `₹${done} for ${sr.srNumber} (${reason}). It reaches your account in 5–7 working days.`, 'payment');
-  if (left > 0) await notifyAdmins('Manual refund needed', `${sr.srNumber}: refund ₹${left} to the customer (paid in cash). Reason: ${reason}`, 'payment');
-  return done;
 }
 
 /** Recomputes paid / refunded / due on the job from its Payment records (the single source of truth). */
@@ -160,33 +166,59 @@ async function syncBill(sr) {
   return sr;
 }
 
-/** After a bill goes down: refund what was paid above the new total, then resync. */
-async function settleExcess(sr, reason) {
+/**
+ * After a bill changes: whatever was paid above the new total becomes (or updates) a refund request for the customer
+ * to direct and the admin to approve. Nothing is refunded automatically.
+ */
+async function settleExcess(sr, reason, opts) {
   await syncBill(sr);
-  if (sr.bill?.excess > 0) {
-    await refundServiceRequest(sr, sr.bill.excess, reason);
-    await syncBill(sr);
-  }
+  if (sr.customerId) await require('./refund.service').syncForServiceRequest(sr, sr.bill?.excess || 0, reason, opts);
   return sr;
 }
 
-/** Cash handed to the engineer on site. Must match the amount due. */
+/**
+ * Cash handed to the engineer on site. Must match the amount due. In one transaction: the payment is recorded and the
+ * engineer's wallet shows the cash as held for the platform (balance down, cash held up). A double tap is harmless:
+ * the second call finds nothing due.
+ */
 async function recordCash(sr, engineer, amount) {
   await syncBill(sr);
   if (!(sr.bill?.due > 0)) throw new ApiError(409, 'Nothing is due on this job');
   if (money(amount) !== sr.bill.due) throw new ApiError(400, `Collect exactly ₹${sr.bill.due}`);
-  await Payment.create({ customerId: sr.customerId, purpose: 'bill', serviceRequestId: sr._id, amount: sr.bill.due, provider: 'cash', status: 'paid', paidAt: new Date(), collectedBy: engineer._id });
+  const due = sr.bill.due;
+  await wallets.inTransaction(async (session) => {
+    // writing to the job makes two simultaneous collections conflict; the retried one sees nothing due and stops
+    const job = await ServiceRequest.findByIdAndUpdate(sr._id, { $inc: { payVersion: 1 } }, { new: true, session });
+    const paidRows = await Payment.find({ serviceRequestId: sr._id, status: 'paid' }).session(session).lean();
+    const net = paidRows.reduce((a, x) => a + x.amount - (x.refundedAmount || 0), 0);
+    if (money(job.bill.total - net) !== due) throw new ApiError(409, 'This payment was already recorded');
+    const [p] = await Payment.create([{ customerId: sr.customerId, purpose: 'bill', serviceRequestId: sr._id, amount: due, provider: 'cash', status: 'paid', paidAt: new Date(), collectedBy: engineer._id }], { session });
+    await wallets.post([{
+      ownerType: 'engineer', ownerId: engineer._id, direction: 'debit', amount: due, cashDelta: due, kind: 'cash_collected',
+      key: `cash:${p._id}`, refType: 'ServiceRequest', refId: sr._id, srNumber: sr.srNumber, note: 'Customer paid in cash', by: engineer._id, byRole: 'engineer',
+    }], { session });
+  });
   await syncBill(sr);
   return sr;
 }
 
-/** Cash an engineer holds and has not deposited yet. */
-async function cashHeld(engineerIds) {
-  const rows = await Payment.aggregate([
-    { $match: { provider: 'cash', status: 'paid', depositedAt: null, collectedBy: { $in: engineerIds } } },
-    { $group: { _id: '$collectedBy', amount: { $sum: '$amount' } } },
-  ]);
-  return new Map(rows.map((r) => [String(r._id), r.amount]));
+/**
+ * Customer pays (part of) what is due from their wallet. In one transaction: wallet debit + the Payment.
+ * Returns the confirmed payment, or null when the wallet is empty.
+ */
+async function payFromWallet({ customer, purpose, amount, serviceRequestId, subscriptionId }) {
+  const w = await wallets.summary('customer', customer._id);
+  const take = money(Math.min(w.balance, amount));
+  if (take <= 0) return null;
+  let payment;
+  await wallets.inTransaction(async (session) => {
+    [payment] = await Payment.create([{ customerId: customer._id, purpose, amount: take, provider: 'wallet', status: 'created', serviceRequestId, subscriptionId }], { session });
+    await wallets.post([{ ownerType: 'customer', ownerId: customer._id, direction: 'debit', amount: take, requireFunds: true, kind: 'wallet_payment', key: `wpay:${payment._id}`, refType: 'Payment', refId: payment._id, note: purpose }], { session });
+  });
+  return markPaid(payment); // confirms the booking / bill exactly like an online payment
 }
 
-module.exports = { live, createOrder, checkoutFor, markPaid, verifyCheckout, handleWebhook, refundPayment, refundServiceRequest, syncBill, settleExcess, recordCash, cashHeld };
+/** Cash held per engineer (₹), from the wallets. */
+const cashHeld = (engineerIds) => wallets.cashHeldMap('engineer', engineerIds);
+
+module.exports = { live, createOrder, checkoutFor, markPaid, verifyCheckout, handleWebhook, refundPayment, syncBill, settleExcess, recordCash, payFromWallet, cashHeld };

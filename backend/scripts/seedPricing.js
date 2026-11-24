@@ -1,5 +1,6 @@
 // Seeds everything the pricing flow needs: product types, customer prices, add-ons, parts, AMC/CMC plans, the pricing
-// settings, payout rate cards for the demo OEM and the OEM → service company authorisation used by dispatch.
+// settings, payout rate cards for the demo OEM, the OEM → service company authorisation used by dispatch, the Indore
+// service zone, demo coupons and bank details for the demo service company and engineers.
 // Safe to re-run: rows are matched by their natural key and updated, nothing is deleted.
 // Run `npm run seed:demo` first (it creates the demo accounts on 6261387233).
 require('dotenv').config();
@@ -15,6 +16,9 @@ const RateCard = require('../src/models/RateCard');
 const Product = require('../src/models/Product');
 const Authorization = require('../src/models/Authorization');
 const Setting = require('../src/models/Setting');
+const Zone = require('../src/models/Zone');
+const Coupon = require('../src/models/Coupon');
+const bcrypt = require('bcryptjs');
 
 const PHONE = '6261387233';
 const BRANDS = ['Aftenza', 'Voltas', 'Luminous', 'Kirloskar', 'LG', 'Demo'];
@@ -32,6 +36,12 @@ const CATALOGUE = {
     ['DG Set 125 kVA', [2999, 1999, 7999, 3499, 699], 699],
   ],
   Inverter: [['Home Inverter up to 1.5 kVA', [399, 449, 699, 299, 149], 149]],
+  // pm = health check + terminal cleaning + water top-up; breakdown = diagnosis and repair labour
+  'Inverter Battery': [
+    ['Flat Plate Battery up to 100 Ah', [199, 249, 299, 149, 99], 99],
+    ['Tubular Battery 150 Ah', [249, 299, 349, 199, 99], 99],
+    ['Tall Tubular Battery 200 Ah', [299, 349, 399, 249, 99], 99],
+  ],
   Pump: [['Monoblock Pump up to 1 HP', [449, 549, 899, 399, 149], 149]],
   'Washing Machine': [
     ['Front Load Washing Machine', [599, 549, 699, 399, 199], 199],
@@ -59,6 +69,11 @@ const PARTS = [
   ['Oil filter', 'OF', 'piece', 550, [], ['Generator']],
   ['Engine oil change', 'OIL', 'set', 3200, [], ['Generator']],
   ['Inverter battery', 'BATT', 'piece', 9500, [], ['Inverter']],
+  ['Replacement battery 150 Ah', 'BAT150', 'piece', 13500, ['warranty'], ['Inverter Battery']],
+  ['Replacement battery 200 Ah', 'BAT200', 'piece', 16500, ['warranty'], ['Inverter Battery']],
+  ['Battery terminal set', 'TERM', 'set', 180, ['warranty', 'cmc'], ['Inverter Battery', 'Inverter']],
+  ['Battery connecting cable', 'BCABLE', 'piece', 350, ['cmc'], ['Inverter Battery', 'Inverter']],
+  ['Distilled water (5 L)', 'DW', 'piece', 120, ['cmc'], ['Inverter Battery']],
   ['Inverter PCB', 'IPCB', 'piece', 1800, ['warranty', 'cmc'], ['Inverter']],
   ['Impeller', 'IMP', 'piece', 900, ['warranty', 'cmc'], ['Pump']],
   ['Motor rewinding', 'WIND', 'piece', 2200, ['warranty', 'cmc'], ['Pump']],
@@ -73,6 +88,8 @@ const ADD_ONS = [
   ['Anti-rust coil coating', 399, ['pm', 'installation'], ['Air Conditioner']],
   ['Drum descaling', 349, ['pm'], ['Washing Machine']],
   ['Stabiliser health check', 149, [], []],
+  ['Battery load & backup test', 149, ['pm', 'breakdown'], ['Inverter Battery']],
+  ['Battery trolley', 699, ['installation'], ['Inverter Battery']],
 ];
 
 // product type → [AMC price, CMC price, PM visits]
@@ -82,6 +99,7 @@ const PLANS = {
   'Home Inverter up to 1.5 kVA': [999, 1999, 2], 'Monoblock Pump up to 1 HP': [899, 1799, 2],
   'Front Load Washing Machine': [1499, 2999, 2], 'Top Load Washing Machine': [1299, 2499, 2],
   'Single Door Refrigerator': [1199, 2299, 2], 'Double Door Refrigerator': [1499, 2799, 2],
+  'Flat Plate Battery up to 100 Ah': [499, 899, 4], 'Tubular Battery 150 Ah': [599, 1099, 4], 'Tall Tubular Battery 200 Ah': [699, 1299, 4],
 };
 
 // payout per job type: [vendor, engineer, platform fee]
@@ -90,6 +108,23 @@ const TRAVEL = [{ fromKm: 0, toKm: 10, amount: 0 }, { fromKm: 10, toKm: 25, amou
 
 // demo OEM models → their product type
 const MODEL_TYPES = { 'DG Set 125 kVA': 'DG Set 125 kVA', '1.5 Ton Split AC': 'Split AC 1.5 Ton', 'Zelio 1100 Inverter': 'Home Inverter up to 1.5 kVA', 'Monoblock Pump 1HP': 'Monoblock Pump up to 1 HP' };
+// battery models in the demo OEM catalogue: [model, product type, warranty months]
+const BATTERY_MODELS = [
+  ['PowerCell FP100 100Ah Battery', 'Flat Plate Battery up to 100 Ah', 24],
+  ['PowerTall TT150 150Ah Tubular Battery', 'Tubular Battery 150 Ah', 36],
+  ['PowerTall TT200 200Ah Tall Tubular Battery', 'Tall Tubular Battery 200 Ah', 48],
+];
+
+// Indore service zone (city limits, roughly Rau to Super Corridor to Bicholi)
+const INDORE = [[22.835, 75.79], [22.82, 75.93], [22.76, 75.99], [22.66, 75.96], [22.61, 75.86], [22.64, 75.76], [22.73, 75.73]];
+
+// demo coupons: [code, title, type, value, maxDiscount, minOrder, firstBookingOnly, jobTypes]
+const COUPONS = [
+  ['WELCOME100', 'Rs 100 off your first booking', 'flat', 100, undefined, 199, true, []],
+  ['SERVICE10', '10% off service charges (up to Rs 150)', 'percent', 10, 150, 299, false, []],
+  ['BATTERY50', 'Rs 50 off a battery health check', 'flat', 50, undefined, 199, false, ['pm']],
+];
+const BANK = (name) => ({ accountName: name, accountNumber: '50100234567890', ifsc: 'HDFC0001234', bankName: 'HDFC Bank', upi: '6261387233@okhdfcbank' });
 
 const upsert = async (Model, key, doc) => Model.findOneAndUpdate(key, { $set: { ...key, ...doc } }, { upsert: true, new: true, setDefaultsOnInsert: true });
 
@@ -128,6 +163,18 @@ async function seedPricing() {
     counts.plans = (counts.plans || 0) + 2;
   }
 
+  // Indore zone (kept if the admin already drew one with this name)
+  if (!(await Zone.exists({ name: 'Indore' }))) {
+    await Zone.create({ name: 'Indore', city: 'Indore', state: 'Madhya Pradesh', coordinates: INDORE.map(([latitude, longitude]) => ({ latitude, longitude })), active: true });
+    counts.zones = 1;
+  }
+
+  // coupons: created once, admin edits are kept
+  for (const [code, title, type, value, maxDiscount, minOrder, firstBookingOnly, jobTypes] of COUPONS) {
+    const r = await Coupon.updateOne({ code }, { $setOnInsert: { code, title, type, value, maxDiscount, minOrder, firstBookingOnly, jobTypes, perCustomerLimit: firstBookingOnly ? 1 : 3, usageLimit: 1000, active: true } }, { upsert: true });
+    if (r.upsertedCount) bump('coupons');
+  }
+
   // pricing settings: write the defaults once if this database predates them (admin edits are kept)
   await Setting.get();
   const raw = await Setting.collection.findOne({ key: 'global' });
@@ -146,6 +193,20 @@ async function seedPricing() {
     await upsert(Authorization, { oemId: oem._id, vendorId: vendor._id }, { brands: BRANDS, cities: ['Indore'], status: 'active', backup: false });
     const certs = BRANDS.map((brand) => ({ brand }));
     await Engineer.updateMany({ companyId: vendor._id }, { $set: { certifications: certs, status: 'approved', active: true, available: true } });
+    // bank details for withdrawals (only where none are saved)
+    await Vendor.updateOne({ _id: vendor._id, 'bank.accountNumber': { $in: [null, ''] } }, { $set: { bank: BANK(vendor.legalName) } });
+    for (const e of await Engineer.find({ companyId: vendor._id, 'bank.accountNumber': { $in: [null, ''] } })) await Engineer.updateOne({ _id: e._id }, { $set: { bank: BANK(e.name) } });
+    // an independent engineer (no service company): collects cash and deposits it to the platform directly
+    if (!(await Engineer.exists({ phone: '9000000003' }))) {
+      await Engineer.create({ name: 'Vikas Patel', phone: '9000000003', passwordHash: await bcrypt.hash('admin@123', 10), engineerType: 'independent', city: 'Indore', serviceTerritories: ['Indore'], certifications: certs, status: 'approved', active: true, available: true, bank: BANK('Vikas Patel') });
+      bump('independent engineers');
+    }
+
+    // battery models
+    for (const [model, typeName, warrantyMonths] of BATTERY_MODELS) {
+      await upsert(Product, { oemId: oem._id, brand: 'Aftenza', model }, { category: 'Inverter Battery', warrantyMonths, subtypeId: types[typeName]._id });
+      bump('battery models');
+    }
 
     for (const brand of BRANDS) {
       for (const [jobType, [vendorPayout, engineerPayout, platformFee]] of Object.entries(PAYOUTS)) {

@@ -16,6 +16,11 @@ const schema = new Schema({
   statusReason: String,
   kyc: [{ docType: String, url: String }],
   location: { lat: Number, lng: Number, at: Date },
+  avatar: String,
+  bank: { accountName: String, accountNumber: String, ifsc: String, bankName: String, upi: String }, // for withdrawals
+  // Profile edits that change who gets which calls wait here until the service company (or admin, for independent
+  // engineers) approves them: { name?, city?, certifications?, requestedAt, note }
+  pendingChanges: Schema.Types.Mixed,
 }, { timestamps: true });
 
 module.exports = mongoose.model('Engineer', schema);

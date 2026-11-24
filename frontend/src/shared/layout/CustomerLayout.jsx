@@ -7,15 +7,10 @@ import { useApi } from '../lib/useApi.js';
 import { useBranding } from '../lib/useBranding.js';
 import { BRAND } from '../constants/sidebarMenus.js';
 import { cn } from '../lib/utils.js';
+import { MOBILE_THEME } from './mobileTheme.js';
 
-// Customer app palette + font. Scoped to this layout so the other panels keep their own theme.
-const THEME = {
-  '--background': '#f7f9fd', '--primary': '#1456d8', '--primary-foreground': '#ffffff',
-  '--secondary': '#e9f0fe', '--secondary-foreground': '#0f3fa6', '--ring': '#1456d8',
-  '--border': '#e6ebf3', '--input': '#e6ebf3', '--muted': '#f1f4f9', '--muted-foreground': '#5d667a',
-  '--foreground': '#0b1324',
-  fontFamily: "'Plus Jakarta Sans', 'Inter', system-ui, sans-serif",
-};
+// Customer app palette + font (shared with the engineer app).
+const THEME = MOBILE_THEME;
 
 const NAV = [
   { to: 'home', label: 'Home', icon: House },

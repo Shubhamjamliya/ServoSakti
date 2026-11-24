@@ -5,7 +5,7 @@ import { useApi } from '@/shared/lib/useApi';
 import { useBranding } from '@/shared/lib/useBranding';
 import { useAuth } from '@/shared/context/AuthContext';
 import { fmtDate } from '@/shared/lib/format';
-import { cn } from '@/shared/lib/utils';
+import { cn, inr } from '@/shared/lib/utils';
 import { resolveHome } from '../homeDefaults.js';
 import { isActive, customerAction } from '../srStatus.js';
 import { EngineerRow, SrPill, StepBar } from '../components/SrParts.jsx';
@@ -138,6 +138,8 @@ export default function Home() {
   const { data: reqs, loading: loadingReqs } = useApi('/service-requests?limit=50');
   const { data: passports, loading: loadingProducts } = useApi('/products/passports?limit=50');
 
+  const { data: refunds } = useApi('/refunds?status=awaiting_customer&limit=20');
+  const waitingRefund = (refunds?.items || []).reduce((t, r) => t + r.amount, 0);
   const allProducts = passports?.items || [];
   const products = allProducts.filter((p) => matches(q, p.brand, p.model, p.serialNumber, p.warrantyNo));
   const active = (reqs?.items || []).filter((r) => isActive(r) && matches(q, r.srNumber, r.brand, r.model, r.issue));
@@ -150,6 +152,13 @@ export default function Home() {
             <h1 className="text-[26px] font-bold leading-tight text-[#0b1324]">Hello, {user?.name?.split(' ')[0] || 'there'} <span className="inline-block">👋</span></h1>
             <p className="mt-1 max-w-[340px] text-[15px] leading-snug text-[#4a5263]">{home.subtitle}</p>
           </div>
+
+          {waitingRefund > 0 && (
+            <Link to="/customer/wallet" className="flex items-center justify-between gap-3 rounded-[18px] border border-amber-300 bg-amber-50 px-3.5 py-3">
+              <span className="text-[13px] text-[#0b1324]"><b>{inr(waitingRefund)}</b> refund is waiting. Choose wallet or original payment.</span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-amber-700" />
+            </Link>
+          )}
 
           <Hero banners={home.banners} />
 

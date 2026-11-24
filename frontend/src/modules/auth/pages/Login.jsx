@@ -8,6 +8,7 @@ import BrandMark, { useBrand } from '@/shared/components/BrandMark';
 import { AUTH_ROLES } from '@/shared/constants/authRoles';
 import Register from './Register';
 import CustomerLogin from '@/modules/customer/pages/CustomerLogin';
+import EngineerLogin from '@/modules/engineer/pages/EngineerLogin';
 import { api } from '@/shared/lib/api';
 import { cn } from '@/shared/lib/utils';
 
@@ -60,6 +61,7 @@ export default function Login({ portal }) {
   if (portal === 'customer') {
     return <CustomerLogin />;
   }
+  if (portal === 'engineer') return <EngineerLogin />;
 
   const cfg = AUTH_ROLES[portal];
   const { user, login, verifyOtp } = useAuth();

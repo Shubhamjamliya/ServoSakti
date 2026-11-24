@@ -12,6 +12,7 @@ import { resolveProductImage, WARRANTY_CONFIG } from '@/shared/lib/productImages
 import { loadGoogleMaps, parsePlace } from '@/shared/lib/googleMaps';
 import { payWith } from '@/shared/lib/razorpay';
 import BillView, { CoverageBadge } from '@/shared/components/BillView';
+import { WalletToggle } from '../components/MoneyParts.jsx';
 import { cn, inr } from '@/shared/lib/utils';
 
 /** 'YYYY-MM-DDT10:00' for tomorrow in the browser's time zone (datetime-local value). */
@@ -36,6 +37,10 @@ export default function ServiceRequests() {
   const [busy, setBusy] = useState(false);
   const [estimate, setEstimate] = useState(null);
   const [estimateError, setEstimateError] = useState('');
+  const [coupon, setCoupon] = useState(''); // applied code
+  const [couponInput, setCouponInput] = useState('');
+  const [useWallet, setUseWallet] = useState(true);
+  const { data: couponList } = useApi(open ? '/coupons/available' : null);
 
   // Current location mode
   const [useCurrentLoc, setUseCurrentLoc] = useState(false);
@@ -121,7 +126,7 @@ export default function ServiceRequests() {
   };
 
   const buildBody = () => {
-    const body = { ...f, scheduledAt: f.slot === 'scheduled' && f.scheduledAt ? new Date(f.scheduledAt).toISOString() : undefined };
+    const body = { ...f, scheduledAt: f.slot === 'scheduled' && f.scheduledAt ? new Date(f.scheduledAt).toISOString() : undefined, couponCode: coupon || undefined, useWallet };
     if (useCurrentLoc && currentLocData) {
       body.addressId = undefined;
       body.address = currentLocData.line;
@@ -136,7 +141,7 @@ export default function ServiceRequests() {
   };
 
   // Live price from the server whenever anything that changes it changes. Nothing is calculated in the app.
-  const estimateKey = JSON.stringify([f.passportId, f.jobType, f.slot, f.scheduledAt, f.addOnIds, f.paymentMode, f.addressId, useCurrentLoc && currentLocData?.lat]);
+  const estimateKey = JSON.stringify([f.passportId, f.jobType, f.slot, f.scheduledAt, f.addOnIds, f.paymentMode, f.addressId, useCurrentLoc && currentLocData?.lat, coupon]);
   useEffect(() => {
     if (!open || !f.passportId) { setEstimate(null); return undefined; }
     let live = true;
@@ -154,7 +159,8 @@ export default function ServiceRequests() {
     setError('');
     try {
       const created = await api('/service-requests', { method: 'POST', body: buildBody() });
-      if (created.payment) {
+      if (!created.payment && created.status === 'pending_payment') toast.success('Paid from wallet. Booking confirmed.');
+      else if (created.payment) {
         try {
           await payWith(created.payment);
           toast.success('Payment received. Booking confirmed.');
@@ -164,6 +170,7 @@ export default function ServiceRequests() {
       } else toast.success('Service request raised successfully');
       setOpen(false);
       setF((s) => ({ ...s, issue: '', addOnIds: [] }));
+      setCoupon(''); setCouponInput('');
       setUseCurrentLoc(false);
       setCurrentLocData(null);
       reload();
@@ -392,13 +399,40 @@ export default function ServiceRequests() {
                   {estimate.jobType === 'breakdown' && <p className="text-[11.5px] text-[#5d667a]">The visit charge covers diagnosis. Repair labour and parts are added after the engineer checks, only with your approval. The visit charge is adjusted in the repair price.</p>}
                   <p className="rounded-lg bg-[#f4f7fc] px-2.5 py-1.5 text-[11.5px] text-[#475467]">Final price is confirmed after the engineer checks your product. Any increase needs your approval in the app.</p>
                   {estimate.bill.upfront > 0 && <p className="text-[12.5px] font-semibold text-[#0b1324]">To pay now: {inr(estimate.bill.upfront)}{f.paymentMode === 'postpaid' && <span className="font-normal text-[#5d667a]"> (visit charge / slot surcharge, the rest after service)</span>}</p>}
+                  {estimate.bill.upfront > 0 && <WalletToggle balance={estimate.walletBalance} checked={useWallet} onChange={setUseWallet} amount={estimate.bill.upfront} />}
                 </>
               )}
             </Panel>
           )}
 
+          {f.passportId && (
+            <Panel className="space-y-2">
+              <p className="text-[14px] font-bold text-[#0b1324]">Coupon</p>
+              {coupon ? (
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12.5px]">
+                  <span><b className="text-emerald-800">{coupon}</b> {estimate?.couponError ? <span className="text-red-600">· {estimate.couponError}</span> : estimate?.bill.couponDiscount > 0 ? <span className="text-emerald-700">· you save {inr(estimate.bill.couponDiscount)}</span> : null}</span>
+                  <button type="button" onClick={() => { setCoupon(''); setCouponInput(''); }} className="font-semibold text-red-600">Remove</button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input value={couponInput} onChange={(e) => setCouponInput(e.target.value.toUpperCase())} placeholder="Enter coupon code" />
+                  <Button type="button" variant="outline" disabled={!couponInput.trim()} onClick={() => setCoupon(couponInput.trim())}>Apply</Button>
+                </div>
+              )}
+              {!coupon && (couponList?.items || []).map((c) => (
+                <button key={c._id} type="button" onClick={() => { setCoupon(c.code); setCouponInput(c.code); }} className="flex w-full items-start justify-between gap-2 rounded-xl border border-dashed border-[#c7d9fc] bg-[#f6f9ff] px-3 py-2 text-left">
+                  <span className="min-w-0">
+                    <span className="block text-[12.5px] font-bold text-[#1456d8]">{c.code}</span>
+                    <span className="block text-[11.5px] text-[#4a5263]">{c.title || (c.type === 'percent' ? `${c.value}% off${c.maxDiscount ? ` up to ${inr(c.maxDiscount)}` : ''}` : `${inr(c.value)} off`)}{c.minOrder ? ` · on service charges of ${inr(c.minOrder)}+` : ''}{c.firstBookingOnly ? ' · first booking' : ''}</span>
+                  </span>
+                  <span className="shrink-0 text-[12px] font-semibold text-[#1456d8]">Apply</span>
+                </button>
+              ))}
+            </Panel>
+          )}
+
           <ErrorNote>{error}</ErrorNote>
-          <div className="flex gap-2"><Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button><Button className="flex-1" disabled={busy || (!!f.passportId && !estimate)}>{busy ? 'Submitting...' : estimate?.bill.upfront > 0 ? `Pay ${inr(estimate.bill.upfront)} & book` : 'Book service'}</Button></div>
+          <div className="flex gap-2"><Button type="button" variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button><Button className="flex-1" disabled={busy || (!!f.passportId && !estimate) || !!estimate?.couponError}>{busy ? 'Submitting...' : estimate?.bill.upfront > 0 ? (() => { const left = Math.max(0, estimate.bill.upfront - (useWallet ? estimate.walletBalance || 0 : 0)); return left > 0 ? `Pay ${inr(left)} & book` : 'Pay from wallet & book'; })() : 'Book service'}</Button></div>
         </form>
       </Screen>
     );

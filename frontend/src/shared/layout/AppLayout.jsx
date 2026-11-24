@@ -6,6 +6,7 @@ import AppNavbar from '@/shared/layout/AppNavbar';
 import { panels, sidebarMenus } from '@/shared/constants/sidebarMenus';
 import { loginPath } from '@/shared/constants/authRoles';
 import { useAuth } from '@/shared/context/AuthContext';
+import OfferRingBanner from '@/shared/components/OfferRingBanner';
 
 // One shell for the OEM, Vendor and Admin panels. Only the menu/brand differ.
 export default function AppLayout({ panel: key }) {
@@ -36,12 +37,16 @@ export default function AppLayout({ panel: key }) {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onCollapseChange={setCollapsed}
-        badges={pending ? { '/admin/oems/approvals': pending.oems, '/admin/vendors/approvals': pending.vendors, '/admin/engineers/approvals': pending.engineers } : {}}
+        badges={pending ? {
+          '/admin/oems/approvals': pending.oems, '/admin/vendors/approvals': pending.vendors, '/admin/engineers/approvals': pending.engineers,
+          '/admin/refunds': pending.refunds, '/admin/withdrawals': pending.withdrawals, '/admin/wallets': pending.deposits, '/admin/payouts': pending.payouts,
+        } : {}}
       />
 
       <div className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-300 ease-in-out ${collapsed ? 'lg:ml-20' : 'lg:ml-80'}`}>
         <AppNavbar onMenuClick={() => setSidebarOpen((v) => !v)} menu={menu} panel={panel} />
         <main className="min-h-0 w-full max-w-full flex-1 overflow-y-auto overflow-x-hidden">
+          {key === 'vendor' && <OfferRingBanner to="/vendor/outside-requests" label="New partner request" />}
           <Outlet />
         </main>
       </div>

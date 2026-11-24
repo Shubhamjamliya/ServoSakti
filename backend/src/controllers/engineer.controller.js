@@ -76,8 +76,86 @@ exports.performance = asyncHandler(async (req, res) => {
 /* ---- the logged-in engineer ---- */
 exports.me = asyncHandler(async (req, res) => res.json(req.engineer));
 
+/*
+ * Profile editing by the engineer.
+ *   saved at once      photo, email, skills, travel areas, service zones (and live location / availability)
+ *   needs approval     name, base city, brand certifications — they decide which calls the engineer is trusted with
+ * Approval-field edits are parked in `pendingChanges` for the service company (or admin, for independent engineers).
+ */
+const DIRECT = ['avatar', 'email', 'skills', 'serviceTerritories', 'serviceZones', 'available'];
+const NEEDS_APPROVAL = ['name', 'city', 'certifications'];
+const clean = (v) => (typeof v === 'string' ? v.trim() : v);
+const sameCerts = (a = [], b = []) => JSON.stringify(a.map((c) => [c.brand, c.docUrl || ''])) === JSON.stringify(b.map((c) => [c.brand, c.docUrl || '']));
+
 exports.updateMe = asyncHandler(async (req, res) => {
-  const patch = pick(req.body, ['available', 'skills', 'city', 'serviceTerritories', 'serviceZones', 'certifications']);
+  const eng = req.engineer;
+  const patch = Object.fromEntries(Object.entries(pick(req.body, DIRECT)).map(([k, v]) => [k, clean(v)]));
   if (req.body.location) patch.location = { ...req.body.location, at: new Date() };
-  res.json(await Engineer.findByIdAndUpdate(req.engineer._id, patch, { new: true }));
+
+  // only real changes to approval fields become a request
+  const asked = {};
+  for (const k of NEEDS_APPROVAL) {
+    if (!(k in req.body)) continue;
+    if (k === 'certifications') {
+      const certs = (req.body.certifications || []).map((c) => ({ brand: String(c.brand || '').trim(), docUrl: c.docUrl })).filter((c) => c.brand);
+      if (!certs.length) throw new ApiError(400, 'Keep at least one brand certification');
+      if (!sameCerts(certs, eng.certifications)) asked.certifications = certs;
+    } else {
+      const v = clean(req.body[k]);
+      if (!v) throw new ApiError(400, `${k === 'name' ? 'Name' : 'City'} cannot be empty`);
+      if (v !== eng[k]) asked[k] = v;
+    }
+  }
+  if (Object.keys(asked).length) {
+    patch.pendingChanges = { ...(eng.pendingChanges || {}), ...asked, requestedAt: new Date(), note: clean(req.body.note) };
+    const what = Object.keys(asked).map((k) => ({ name: 'name', city: 'city', certifications: 'brand certifications' }[k])).join(', ');
+    const msg = `${eng.name} asked to change ${what}`;
+    if (eng.companyId) await notify([eng.companyId], 'Engineer profile change', msg, 'approval');
+    else await notifyAdmins('Engineer profile change', msg, 'approval');
+    audit(req.user, 'engineer.changes.request', 'Engineer', eng._id, asked);
+  }
+  const updated = await Engineer.findByIdAndUpdate(eng._id, patch, { new: true });
+  res.json({ ...updated.toObject(), approvalRequested: Object.keys(asked) });
+});
+
+/** Engineer withdraws their own pending request. */
+exports.cancelChanges = asyncHandler(async (req, res) => {
+  res.json(await Engineer.findByIdAndUpdate(req.engineer._id, { $unset: { pendingChanges: 1 } }, { new: true }));
+});
+
+/** Service company (its own engineers) or admin approves / rejects a pending profile change. */
+exports.decideChanges = asyncHandler(async (req, res) => {
+  const { decision, note } = req.body;
+  if (!['approve', 'reject'].includes(decision)) throw new ApiError(400, 'decision must be approve or reject');
+  const eng = await Engineer.findOne({ _id: req.params.id, ...scope(req) });
+  if (!eng) throw new ApiError(404, 'Engineer not found');
+  const pending = eng.pendingChanges;
+  if (!pending) throw new ApiError(409, 'No profile change is waiting');
+  if (decision === 'approve') NEEDS_APPROVAL.forEach((k) => { if (pending[k] !== undefined) eng[k] = pending[k]; });
+  eng.pendingChanges = undefined;
+  await eng.save();
+  audit(req.user, `engineer.changes.${decision}`, 'Engineer', eng._id, { pending, note });
+  await notify([eng._id], decision === 'approve' ? 'Profile change approved' : 'Profile change not approved', note || (decision === 'approve' ? 'Your profile is updated.' : 'Contact your service company for details.'), 'approval');
+  res.json(eng);
+});
+
+/**
+ * Online / offline. Going online starts the day (GPS) if it has not started yet and makes the engineer available for
+ * dispatch; going offline stops new offers (jobs already accepted stay with them).
+ */
+exports.setDuty = asyncHandler(async (req, res) => {
+  const online = !!req.body.online;
+  const eng = req.engineer;
+  let day = await DayLog.findOne({ engineerId: eng._id, date: istDate() });
+  if (online) {
+    const { lat, lng } = req.body;
+    if (typeof lat !== 'number' || typeof lng !== 'number') throw new ApiError(400, 'Your location is needed to go online');
+    if (day?.closedAt) throw new ApiError(409, 'Your day has been closed. You can go online again tomorrow.');
+    if (!day) day = await DayLog.create({ engineerId: eng._id, date: istDate(), startedAt: new Date(), startLocation: { lat, lng } });
+    eng.location = { lat, lng, at: new Date() };
+  }
+  eng.available = online;
+  await eng.save();
+  audit(req.user, online ? 'engineer.online' : 'engineer.offline', 'Engineer', eng._id);
+  res.json({ online, available: eng.available, day });
 });

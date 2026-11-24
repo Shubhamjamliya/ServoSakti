@@ -19,6 +19,8 @@ const schema = new Schema({
   inactiveMonthRecharge: { type: String, enum: ['eligible', 'ineligible'], default: 'ineligible' }, // needs client confirmation
   businessSetup: {
     companyName: { type: String, default: 'Aftenza' },
+    gstin: { type: String, default: '' }, // printed on customer invoices
+    invoicePrefix: { type: String, default: 'INV' },
     appTagline: { type: String, default: '' }, // small line under the name in the customer app header
     email: { type: String, default: '' },
     phoneCountryCode: { type: String, default: '+91' },
@@ -64,7 +66,9 @@ const schema = new Schema({
     noShowUnderCoverage: { type: Boolean, default: true }, // charge the visit even under warranty/AMC/CMC
     lateArrivalMinutes: { type: Number, default: 60 },
     cashLimit: { type: Number, default: 10000 }, // engineers holding more cash than this get no new jobs
+    disputesEnabled: { type: Boolean, default: true }, // customers can report a problem after a visit
     disputeWindowDays: { type: Number, default: 7 },
+    minWithdrawal: { type: Number, default: 500 }, // ₹, engineers and service companies
     repeatVisitDays: { type: Number, default: 30 },
     inspectionValidDays: { type: Number, default: 30 },
     planFullRefundDays: { type: Number, default: 7 },

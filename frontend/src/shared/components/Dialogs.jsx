@@ -313,7 +313,7 @@ export function AssignDialog({ srId, onClose, onDone }) {
             <Label htmlFor="eng">Engineer</Label>
             <NativeSelect id="eng" required value={engineerId} onChange={(e) => setEngineerId(e.target.value)}>
               <option value="" disabled>Select engineer...</option>
-              {data?.items?.map((e) => <option key={e._id} value={e._id}>{e.name} · {e.city || '—'} · {e.companyName || 'Independent'}</option>)}
+              {data?.items?.map((e) => <option key={e._id} value={e._id}>{e.available === false ? '○ Offline' : '● Online'} · {e.name} · {e.city || '—'} · {e.companyName || 'Independent'}</option>)}
             </NativeSelect>
           </div>
           <div className="space-y-1.5">

@@ -40,7 +40,9 @@ export default function BillView({ bill, showPayments = true, title }) {
         </div>
       ))}
       <div className="my-1 border-t border-dashed border-[#e1e6ef]" />
-      {bill.discount > 0 && <Row label="Prepaid discount" value={`− ${inr(bill.discount)}`} className="text-emerald-700" />}
+      {(bill.prepaidDiscount ?? (bill.couponDiscount ? 0 : bill.discount)) > 0 && <Row label="Prepaid discount" value={`− ${inr(bill.prepaidDiscount ?? bill.discount)}`} className="text-emerald-700" />}
+      {bill.couponDiscount > 0 && <Row label={`Coupon ${bill.couponCode || ''}`} value={`− ${inr(bill.couponDiscount)}`} className="text-emerald-700" />}
+      {bill.couponNote && <p className="py-0.5 text-[11.5px] text-amber-700">{bill.couponNote}</p>}
       <Row label={`GST ${bill.gstPercent ?? 18}%`} value={inr(bill.gst)} muted />
       <Row label="Total" value={inr(bill.total)} strong />
       {showPayments && bill.paid > 0 && <Row label="Paid" value={inr(bill.paid)} muted />}

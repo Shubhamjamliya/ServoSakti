@@ -1,16 +1,16 @@
 import { directionsUrl } from '@/shared/lib/googleMaps';
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Camera, MapPin, Phone, ShieldCheck } from 'lucide-react';
+import { CalendarDays, Camera, MapPin, Navigation, Phone, ShieldCheck, Wrench } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input, NativeSelect, Textarea } from '@/shared/components/ui/input';
-import { ErrorNote, Field, KeyValue, Panel, Screen, Section, StatusPill } from '@/shared/components/Mobile';
+import { ErrorNote, Field, KeyValue, Panel, Screen, Section, StatusPill, primaryBtn, secondaryBtn } from '@/shared/components/Mobile';
 import BillView, { CoverageBadge } from '@/shared/components/BillView';
 import { api, uploadFiles } from '@/shared/lib/api';
 import { getPosition } from '@/shared/lib/geo';
 import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
-import { JOB_TYPES, fmtDateTime, humanize } from '@/shared/lib/format';
+import { JOB_TYPES, PAYMENT_STATUSES, fmtDateTime, humanize, labelOf } from '@/shared/lib/format';
 import { inr } from '@/shared/lib/utils';
 
 const parseReadings = (text) =>
@@ -26,9 +26,15 @@ function PhotoPicker({ label, urls, onChange }) {
   return (
     <Field label={label}>
       <div className="flex flex-wrap gap-2">
-        {urls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="rounded-lg border bg-muted px-2 py-1 text-xs">{u.split('/').pop().slice(-14)}</a>)}
+        {urls.map((u) => (
+          <a key={u} href={u} target="_blank" rel="noreferrer" className="h-16 w-16 overflow-hidden rounded-xl border border-[#e6ebf3] bg-[#f7f9fd]">
+            <img src={u} alt="" className="h-full w-full object-cover" />
+          </a>
+        ))}
         <input ref={ref} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={add} />
-        <Button type="button" variant="outline" size="sm" onClick={() => ref.current?.click()}><Camera className="h-4 w-4" /> Add photo</Button>
+        <button type="button" onClick={() => ref.current?.click()} className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-dashed border-[#c7d9fc] bg-[#f4f8ff] text-[10.5px] font-semibold text-[#1456d8]">
+          <Camera className="h-5 w-5" /> Add
+        </button>
       </div>
     </Field>
   );
@@ -173,39 +179,60 @@ export default function JobDetail() {
   const verifyOtp = () => run('verify', () => api(`/field/${id}/otp/verify`, { method: 'POST', body: { otp } }), 'Customer confirmed');
   const submit = () => run('submit', async () => { await saveReport(); await api(`/field/${id}/submit`, { method: 'POST' }); }, 'eFSR submitted for review');
 
-  if (loading) return <p className="text-sm text-neutral-500">Loading...</p>;
+  if (loading) return <div className="space-y-3"><div className="h-10 w-40 animate-pulse rounded-xl bg-[#e8eef8]" /><div className="h-48 animate-pulse rounded-[18px] bg-[#e8eef8]" /></div>;
   if (error) return <ErrorNote>{error}</ErrorNote>;
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const rejected = sr.report?.review?.status === 'rejected';
 
   return (
-    <Screen back="/engineer/jobs" title={sr.srNumber} subtitle={[sr.brand, sr.model].filter(Boolean).join(' ')} action={<StatusPill status={sr.status} />}>
+    <Screen back="/engineer/jobs" title={`SR #${String(sr.srNumber).replace(/^SR-/, '')}`} subtitle={`Created ${fmtDateTime(sr.createdAt)}`} action={<StatusPill status={sr.status} />}>
 
       {rejected && sr.status === 'in_progress' && <ErrorNote>Sent back by reviewer: {sr.report.review.note || 'please redo the evidence'}</ErrorNote>}
 
-      <Panel>
-        <KeyValue label="Customer">{sr.customerName}</KeyValue>
-        <KeyValue label="Phone">{sr.customerPhone && <a className="inline-flex items-center gap-1 text-primary" href={`tel:${sr.customerPhone}`}><Phone className="h-3 w-3" />{sr.customerPhone}</a>}</KeyValue>
-        <KeyValue label="Site">{[sr.city, sr.address].filter(Boolean).join(' · ')}</KeyValue>
-        <KeyValue label="Zone">{sr.zoneName}</KeyValue>
-        {sr.location?.lat != null && (
-          <KeyValue label="Directions"><a className="inline-flex items-center gap-1 text-primary" target="_blank" rel="noreferrer" href={directionsUrl(sr.location.lat, sr.location.lng)}><MapPin className="h-3 w-3" /> Navigate to site</a></KeyValue>
-        )}
-        <KeyValue label="Job">{humanize(sr.jobType)} · {sr.priority}{sr.slot === 'urgent' ? ' · URGENT' : ''}</KeyValue>
-        {sr.scheduledAt && <KeyValue label="Slot">{fmtDateTime(sr.scheduledAt)}</KeyValue>}
-        <KeyValue label="Product type">{sr.subtypeName}</KeyValue>
-        <KeyValue label="Coverage"><CoverageBadge coverage={sr.coverage} /></KeyValue>
-        <KeyValue label="Payment">{sr.paymentMode === 'prepaid' ? 'Prepaid' : 'Pay after service'}{sr.bill ? ` · ${humanize(sr.paymentStatus)}` : ''}</KeyValue>
-        <KeyValue label="Issue">{sr.issue}</KeyValue>
-      </Panel>
+      {/* Job card */}
+      <div className="overflow-hidden rounded-[18px] border border-[#e6ebf3] bg-white shadow-[0_2px_10px_rgba(15,35,80,0.04)]">
+        <div className="flex gap-3 p-3.5">
+          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${sr.slot === 'urgent' ? 'bg-red-50 text-red-600' : 'bg-[#e9f0fe] text-[#1456d8]'}`}><Wrench className="h-5 w-5" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-bold text-[#0b1324]">{[sr.brand, sr.model].filter(Boolean).join(' ') || 'Equipment'}</p>
+            <p className="text-[12.5px] text-[#4a5263]">{[sr.subtypeName, labelOf(JOB_TYPES, sr.jobType)].filter(Boolean).join(' · ')}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <CoverageBadge coverage={sr.coverage} />
+              {sr.slot === 'urgent'
+                ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">Urgent · within 3 hours</span>
+                : sr.scheduledAt && <span className="flex items-center gap-1 rounded-full bg-[#f1f4f9] px-2 py-0.5 text-[11px] font-semibold text-[#4a5263]"><CalendarDays className="h-3 w-3" />{fmtDateTime(sr.scheduledAt)}</span>}
+            </div>
+          </div>
+        </div>
+        {sr.issue && <p className="mx-3.5 mb-3 rounded-xl bg-[#f7f9fd] px-3 py-2 text-[12.5px] text-[#4a5263]"><span className="font-semibold text-[#0b1324]">Issue: </span>{sr.issue}</p>}
+        <div className="border-t border-[#eef1f6] px-3.5 py-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1d2848] text-[12px] font-bold text-white">{(sr.customerName || 'C').split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-[13.5px] font-semibold text-[#0b1324]">{sr.customerName || 'Customer'}</p>
+              <p className="truncate text-[11.5px] text-[#5d667a]">{[sr.address, sr.city].filter(Boolean).join(', ') || 'Address not provided'}{sr.zoneName ? ` · ${sr.zoneName}` : ''}</p>
+            </div>
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            {sr.customerPhone ? <a href={`tel:${sr.customerPhone}`} className={secondaryBtn}><Phone className="h-4 w-4" /> Call</a> : <span className={`${secondaryBtn} opacity-50`}><Phone className="h-4 w-4" /> No phone</span>}
+            {sr.location?.lat != null
+              ? <a target="_blank" rel="noreferrer" href={directionsUrl(sr.location.lat, sr.location.lng)} className={secondaryBtn}><Navigation className="h-4 w-4" /> Navigate</a>
+              : <span className={`${secondaryBtn} opacity-50`}><MapPin className="h-4 w-4" /> No map pin</span>}
+          </div>
+        </div>
+        <div className="border-t border-[#eef1f6] px-3.5 py-1">
+          <KeyValue label="Payment">{sr.paymentMode === 'prepaid' ? 'Prepaid online' : 'Pay after service'}{sr.bill ? ` · ${labelOf(PAYMENT_STATUSES, sr.paymentStatus)}` : ''}</KeyValue>
+          <KeyValue label="Priority">{sr.priority}</KeyValue>
+        </div>
+      </div>
 
       {(sr.status === 'assigned' || (sr.status === 'in_progress' && !sr.report?.checkIn?.at)) && (
-        <Button size="lg" className="w-full" disabled={busy === 'checkin'} onClick={checkIn}><MapPin className="h-4 w-4" /> {busy === 'checkin' ? 'Getting location...' : 'Check in at site (GPS)'}</Button>
+        <button type="button" className={`${primaryBtn} h-12`} disabled={busy === 'checkin'} onClick={checkIn}><MapPin className="h-4 w-4" /> {busy === 'checkin' ? 'Getting location...' : 'Check in at site (GPS)'}</button>
       )}
 
       {sr.status === 'in_progress' && form && (
         <>
-          {sr.report?.checkIn?.at && <p className="flex items-center gap-1 text-sm text-green-700"><ShieldCheck className="h-4 w-4" /> Checked in{sr.report.checkIn.distanceKm != null ? ` · ${sr.report.checkIn.distanceKm} km from site` : ''}</p>}
+          {sr.report?.checkIn?.at && <p className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700"><ShieldCheck className="h-4 w-4" /> Checked in at site{sr.report.checkIn.distanceKm != null ? ` · ${sr.report.checkIn.distanceKm} km from the pin` : ''}</p>}
           {sr.report?.checkIn?.at && <OnSite key={`${sr.updatedAt}`} sr={sr} reload={reload} />}
           <Section title="Service report">
             <Panel className="space-y-3">
@@ -219,38 +246,42 @@ export default function JobDetail() {
               )}
               <PhotoPicker label="Before photos" urls={form.beforePhotos} onChange={(v) => setForm((f) => ({ ...f, beforePhotos: v }))} />
               <PhotoPicker label="After photos" urls={form.afterPhotos} onChange={(v) => setForm((f) => ({ ...f, afterPhotos: v }))} />
-              <Button variant="outline" className="w-full" disabled={!!busy} onClick={save}>Save progress</Button>
+              <button type="button" className={secondaryBtn} disabled={!!busy} onClick={save}>Save progress</button>
             </Panel>
           </Section>
 
           <Section title="Customer confirmation">
             <Panel className="space-y-3">
-              <p className="text-sm text-neutral-600">Ask the customer for the OTP sent to their app to confirm the service is complete.</p>
-              <Button variant="outline" className="w-full" disabled={!!busy} onClick={sendOtp}>Send OTP to customer</Button>
-              {devOtp && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Dev mode OTP: <b>{devOtp}</b></p>}
-              <div className="flex gap-2">
-                <Input inputMode="numeric" maxLength={6} placeholder="OTP" value={otp} onChange={(e) => setOtp(e.target.value)} />
-                <Button disabled={otp.length < 4 || !!busy} onClick={verifyOtp}>Verify</Button>
-              </div>
+              <p className="text-[12.5px] text-[#5d667a]">Ask the customer for the OTP shown in their app to confirm the service is complete.</p>
+              <button type="button" className={secondaryBtn} disabled={!!busy} onClick={sendOtp}>Send OTP to customer</button>
+              {devOtp && <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">Dev mode OTP: <b>{devOtp}</b></p>}
+              {sr.otp?.verified
+                ? <p className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700"><ShieldCheck className="h-4 w-4" /> Customer confirmed</p>
+                : (
+                  <div className="flex gap-2">
+                    <Input inputMode="numeric" maxLength={6} placeholder="Enter OTP" value={otp} onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))} className="h-11 rounded-xl text-center text-[16px] font-bold tracking-[0.3em]" />
+                    <button type="button" className={`${primaryBtn} w-28`} disabled={otp.length < 4 || !!busy} onClick={verifyOtp}>Verify</button>
+                  </div>
+                )}
             </Panel>
           </Section>
 
           <ErrorNote>{problem}</ErrorNote>
-          <Button size="lg" className="w-full" disabled={!!busy} onClick={submit}>{busy === 'submit' ? 'Submitting...' : 'Submit eFSR for review'}</Button>
+          <button type="button" className={`${primaryBtn} h-12`} disabled={!!busy} onClick={submit}>{busy === 'submit' ? 'Submitting...' : 'Submit eFSR for review'}</button>
         </>
       )}
 
       {sr.status === 'failed' && sr.bill?.due > 0 && (
         <Panel className="space-y-3">
-          <p className="text-sm text-neutral-700">Visit ended: {sr.failReason}</p>
+          <p className="text-[13px] font-semibold text-[#0b1324]">Visit ended: <span className="font-normal text-[#4a5263]">{sr.failReason}</span></p>
           <BillView bill={sr.bill} />
-          <Button variant="outline" className="w-full" disabled={!!busy} onClick={() => window.confirm(`Confirm you collected ₹${sr.bill.due} in cash?`) && run('cash', () => api(`/field/${id}/collect-cash`, { method: 'POST', body: { amount: sr.bill.due } }), 'Cash recorded')}>
+          <button type="button" className={primaryBtn} disabled={!!busy} onClick={() => window.confirm(`Confirm you collected ₹${sr.bill.due} in cash?`) && run('cash', () => api(`/field/${id}/collect-cash`, { method: 'POST', body: { amount: sr.bill.due } }), 'Cash recorded')}>
             Collected {inr(sr.bill.due)} in cash
-          </Button>
+          </button>
         </Panel>
       )}
-      {sr.status === 'under_review' && <Panel className="border-amber-200 bg-amber-50 text-sm text-amber-900">Report submitted. Waiting for review — you'll be notified once it is approved.</Panel>}
-      {['approved', 'closed'].includes(sr.status) && <Panel className="border-green-200 bg-green-50 text-sm text-green-900">This call was approved{sr.reviewNote ? `: ${sr.reviewNote}` : '.'} Payout details are under Earnings.</Panel>}
+      {sr.status === 'under_review' && <Panel className="border-amber-200 bg-amber-50 text-[13px] text-amber-900"><p className="font-bold">Report submitted</p>Waiting for review — you will be notified once it is approved.</Panel>}
+      {['approved', 'closed'].includes(sr.status) && <Panel className="border-emerald-200 bg-emerald-50 text-[13px] text-emerald-900"><p className="font-bold">Call approved</p>{sr.reviewNote ? `${sr.reviewNote}. ` : ''}Payout details are under Earnings.</Panel>}
     </Screen>
   );
 }

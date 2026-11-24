@@ -13,6 +13,8 @@ import { useToast } from '@/shared/context/ToastContext';
 const TEXT = [
   ['companyName', 'Company / app name', 'sm:col-span-2'],
   ['appTagline', 'App tagline (shown under the name in the customer app)', 'sm:col-span-2'],
+  ['gstin', 'GSTIN (printed on customer invoices)'],
+  ['invoicePrefix', 'Invoice number prefix (e.g. INV)'],
   ['email', 'Email'],
   ['phoneNumber', 'Phone number'],
   ['address', 'Address', 'sm:col-span-2'],

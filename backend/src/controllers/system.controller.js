@@ -14,7 +14,7 @@ const { uploadImageBuffer, removeUploadedFile } = require('../services/storage.s
 const { isCloudinaryConfigured } = require('../utils/cloudinary');
 const { audit } = require('../services/realtime');
 
-const TEXT_FIELDS = ['companyName', 'appTagline', 'email', 'phoneCountryCode', 'phoneNumber', 'address', 'state', 'pincode', 'region'];
+const TEXT_FIELDS = ['gstin', 'invoicePrefix', 'companyName', 'appTagline', 'email', 'phoneCountryCode', 'phoneNumber', 'address', 'state', 'pincode', 'region'];
 const LOGO_FIELDS = ['logo', 'favicon', 'oemLogo', 'vendorLogo', 'engineerLogo', 'customerLogo'];
 exports.LOGO_FIELDS = LOGO_FIELDS;
 
@@ -27,7 +27,11 @@ const brandingOf = (s) => {
 exports.branding = asyncHandler(async (req, res) => {
   const setting = await Setting.get();
   const b = brandingOf(setting);
-  res.json({ companyName: b.companyName, appTagline: b.appTagline || '', customerHome: setting.customerHome, ...Object.fromEntries(LOGO_FIELDS.map((f) => [f, b[f]])) });
+  res.json({
+    companyName: b.companyName, appTagline: b.appTagline || '', customerHome: setting.customerHome, ...Object.fromEntries(LOGO_FIELDS.map((f) => [f, b[f]])),
+    // customer-facing rules the apps need before login (no secrets)
+    rules: { disputesEnabled: setting.pricing?.disputesEnabled !== false, disputeWindowDays: setting.pricing?.disputeWindowDays ?? 7 },
+  });
 });
 
 exports.getBusinessSetup = asyncHandler(async (req, res) => {

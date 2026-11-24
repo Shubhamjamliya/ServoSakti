@@ -25,7 +25,7 @@ async function findRateCard(sr) {
   return null;
 }
 
-const round2 = (n) => Math.round(n * 100) / 100;
+const { money: round2 } = require('../utils/helpers');
 
 async function createPayout(sr, report, actorId, { failed = false } = {}) {
   const settings = await Setting.get();
@@ -46,7 +46,8 @@ async function createPayout(sr, report, actorId, { failed = false } = {}) {
     const travel = slab?.amount || 0;
     payout.rateCardId = card._id;
     payout.rateSnapshot = { ...card, appliedSlab: slab || null };
-    payout.vendorAmount = card.vendorPayout + travel;
+    // the service company's share exists only when a service company did the job (independent engineers have none)
+    payout.vendorAmount = sr.vendorId && engineer?.engineerType !== 'independent' ? card.vendorPayout + travel : 0;
     // independent engineers can have their own rate; company engineers are paid by their company at the standard rate
     const base = engineer?.engineerType === 'independent' && card.independentEngineerPayout != null ? card.independentEngineerPayout : card.engineerPayout;
     // the engineer earns a share of any slot surcharge the customer paid (urgent, same day, Sunday, night)

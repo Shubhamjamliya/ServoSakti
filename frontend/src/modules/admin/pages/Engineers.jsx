@@ -6,6 +6,7 @@ import ResourcePage from '@/shared/components/ResourcePage';
 import { api } from '@/shared/lib/api';
 import { useToast } from '@/shared/context/ToastContext';
 import { fmtDate, humanize } from '@/shared/lib/format';
+import { ChangesBadge, ChangesDialog } from '@/shared/components/EngineerChanges';
 
 const STATUSES = ['pending', 'approved', 'suspended', 'rejected'].map((v) => ({ value: v, label: humanize(v) }));
 const brands = (r) => (r.certifications || []).map((c) => c.brand).join(', ') || '—';
@@ -15,6 +16,7 @@ export default function Engineers({ pending = false }) {
   const toast = useToast();
   const [dialog, setDialog] = useState(null); // { row, action: 'suspend' | 'reject' }
   const [version, setVersion] = useState(0);
+  const [changesFor, setChangesFor] = useState(null);
   const bump = () => setVersion((v) => v + 1);
 
   const setStatus = async (row, status, reason) => {
@@ -42,7 +44,7 @@ export default function Engineers({ pending = false }) {
       { key: 'city', label: 'City' },
       { key: 'certifications', label: 'Brand certifications', render: brands },
       { key: 'available', label: 'Availability', render: (r) => <Badge tone={r.available ? 'green' : 'gray'}>{r.available ? 'Available' : 'Off duty'}</Badge> },
-      { key: 'status', label: 'Status', render: (r) => <Badge>{humanize(r.status)}</Badge> },
+      { key: 'status', label: 'Status', render: (r) => <span className="flex flex-col items-start gap-1"><Badge>{humanize(r.status)}</Badge><ChangesBadge row={r} /></span> },
     ];
 
   return (
@@ -62,11 +64,13 @@ export default function Engineers({ pending = false }) {
           </>
         ) : (
           <>
+            {row.pendingChanges && <Button size="sm" variant="secondary" onClick={() => setChangesFor(row)}>Review change</Button>}
             {['pending', 'suspended', 'rejected'].includes(row.status) && <Button size="sm" onClick={() => run(() => setStatus(row, 'approved'))}>{row.status === 'pending' ? 'Approve' : 'Reactivate'}</Button>}
             {row.status === 'approved' && <Button size="sm" variant="outline" className="text-red-600" onClick={() => setDialog({ row, action: 'suspend' })}>Suspend</Button>}
           </>
         ))}
       />
+      <ChangesDialog engineer={changesFor} onClose={() => setChangesFor(null)} onDone={bump} />
       <PromptDialog
         open={!!dialog} onOpenChange={(o) => !o && setDialog(null)} title={`${dialog?.action === 'reject' ? 'Reject' : 'Suspend'} ${dialog?.row?.name}`}
         label="Reason" required destructive confirmLabel={dialog?.action === 'reject' ? 'Reject' : 'Suspend'}

@@ -16,6 +16,9 @@ const dispatch = require('../services/dispatch.service');
 const pricing = require('../services/pricing.service');
 const payments = require('../services/payment.service');
 const booking = require('../services/booking.service');
+const wallets = require('../services/wallet.service');
+const coupons = require('../services/coupon.service');
+const invoices = require('../services/invoice.service');
 const { warrantyClaimable } = pricing;
 const { detectZone, hasActiveZones } = require('../services/zone.service');
 const { notify, notifyAdmins, notifyCompany, audit } = require('../services/realtime');
@@ -64,6 +67,7 @@ async function verifyRequest(sr, user, patch = {}) {
   await sr.save();
   audit(user, 'sr.verify', 'ServiceRequest', sr._id, { vendorId: sr.vendorId });
   if (sr.customerId) await notify([sr.customerId], 'Request verified', `${sr.srNumber} is verified and being assigned`, 'service');
+  if (sr.vendorId) await notifyCompany(sr.vendorId, 'New call', `${sr.srNumber} · ${sr.brand} ${sr.model || ''} (${sr.city || '—'}) is with your company`, 'new_call');
   if (settings.autoDispatch) await dispatch.startDispatch(sr, user.id);
   return sr;
 }
@@ -140,15 +144,31 @@ async function prepare(req) {
 }
 
 /** Prices a prepared request when its product type is known. Returns null for unpriced (legacy / brand-only) requests. */
-async function priceFor(req, { doc, passport, settings }) {
+async function priceFor(req, { doc, passport, settings }, { strictCoupon = false } = {}) {
   if (!doc.subtypeId) return null;
   const b = req.body;
-  const firstBooking = req.user.role === 'customer' && !(await ServiceRequest.exists({ customerId: req.customer._id, status: { $in: ['approved', 'closed'] } }));
+  const isCustomer = req.user.role === 'customer';
+  const firstBooking = isCustomer && !(await ServiceRequest.exists({ customerId: req.customer._id, status: { $in: ['approved', 'closed'] } }));
   return pricing.quoteBooking({
     passport, subtypeId: doc.subtypeId, brand: doc.brand, jobType: doc.jobType, slot: b.slot, scheduledAt: b.scheduledAt, addOnIds: b.addOnIds,
     location: doc.location, zoneId: doc.zoneId, paymentMode: b.paymentMode === 'prepaid' ? 'prepaid' : 'postpaid',
     repeat: !!doc.repeatOf && doc.jobType === 'breakdown', firstBooking, settings,
+    couponCode: isCustomer ? b.couponCode : undefined, customerId: isCustomer ? req.customer._id : undefined, strictCoupon,
   });
+}
+
+/**
+ * Takes what is due now: first from the customer's wallet (when asked), the rest through Razorpay.
+ * Returns the Razorpay checkout for the remainder, or null when the wallet covered everything.
+ */
+async function collect(customer, { amount, purpose, sr, useWallet, description }) {
+  let left = amount;
+  if (useWallet) {
+    const fromWallet = await payments.payFromWallet({ customer, purpose, amount, serviceRequestId: sr._id });
+    if (fromWallet) left = Math.round((left - fromWallet.amount) * 100) / 100;
+  }
+  if (left <= 0) return null;
+  return payments.createOrder({ customer, purpose, amount: left, serviceRequestId: sr._id, description });
 }
 
 /** Price shown before booking. Nothing is saved. */
@@ -159,14 +179,15 @@ exports.estimate = asyncHandler(async (req, res) => {
   res.json({
     coverage: quote.coverage, subscription: quote.subscription && { _id: quote.subscription._id, type: quote.subscription.type, endDate: quote.subscription.endDate, pmVisitsUsed: quote.subscription.pmVisitsUsed, pmVisitsTotal: quote.subscription.pmVisitsTotal },
     subtypeName: quote.subtype.name, jobType: prepared.doc.jobType, slot: quote.slot, scheduledAt: quote.scheduledAt, distance: quote.distance, bill: quote.bill,
-    repeat: !!prepared.doc.repeatOf, verified: !!prepared.passport?.verified,
+    repeat: !!prepared.doc.repeatOf, verified: !!prepared.passport?.verified, couponError: quote.couponError,
+    walletBalance: req.user.role === 'customer' ? (await wallets.summary('customer', req.customer._id)).balance : undefined,
   });
 });
 
 exports.create = asyncHandler(async (req, res) => {
   const prepared = await prepare(req);
   const { doc, settings } = prepared;
-  const quote = await priceFor(req, prepared);
+  const quote = await priceFor(req, prepared, { strictCoupon: true });
   if (quote) {
     Object.assign(doc, {
       subtypeName: quote.subtype.name, coverage: quote.coverage, subscriptionId: quote.subscription?._id, slot: quote.slot, scheduledAt: quote.scheduledAt,
@@ -181,12 +202,18 @@ exports.create = asyncHandler(async (req, res) => {
 
   doc.srNumber = `SR-${1000 + (await Counter.next('sr'))}`;
   doc.tatDueAt = new Date(Date.now() + (settings.slaHours?.[doc.priority] || 48) * 3600000);
-  const sr = await ServiceRequest.create(doc);
-  audit(req.user, 'sr.create', 'ServiceRequest', sr._id, { by: req.user.role, total: sr.bill?.total });
+  // the booking and its coupon use are saved together, or not at all
+  const sr = await wallets.inTransaction(async (session) => {
+    const [created] = await ServiceRequest.create([doc], { session });
+    if (quote?.coupon) await coupons.redeem(quote.coupon, created, quote.bill.couponDiscount, session);
+    return created;
+  });
+  audit(req.user, 'sr.create', 'ServiceRequest', sr._id, { by: req.user.role, total: sr.bill?.total, coupon: quote?.coupon?.code });
 
   if (payNow) {
-    const payment = await payments.createOrder({ customer: req.customer, purpose: 'booking', amount: quote.bill.upfront, serviceRequestId: sr._id, description: `${sr.srNumber} booking` });
-    return res.status(201).json({ ...sr.toObject(), payment });
+    const payment = await collect(req.customer, { amount: quote.bill.upfront, purpose: 'booking', sr, useWallet: !!req.body.useWallet, description: `${sr.srNumber} booking` });
+    const fresh = await ServiceRequest.findById(sr._id).lean();
+    return res.status(201).json({ ...fresh, payment });
   }
   if (sr.customerId) await notify([sr.customerId], 'Service request raised', `${sr.srNumber} · ${sr.brand} ${sr.model || ''} — we will assign an engineer shortly`, 'service');
   if (['oem', 'admin'].includes(req.user.role)) await verifyRequest(sr, req.user);
@@ -208,14 +235,28 @@ exports.pay = asyncHandler(async (req, res) => {
   const sr = await findMine(req);
   await payments.syncBill(sr);
   await sr.save();
+  const useWallet = !!req.body.useWallet;
   if (sr.status === 'pending_payment') {
-    const open = await Payment.findOne({ serviceRequestId: sr._id, status: 'created', purpose: 'booking' }).sort({ createdAt: -1 });
-    if (open) return res.json({ payment: await payments.checkoutFor(open, req.customer, `${sr.srNumber} booking`) });
+    // still to pay before the booking is confirmed = upfront minus what is already in
+    const left = Math.round(((sr.bill.upfront || 0) - ((sr.bill.paid || 0) - (sr.bill.refunded || 0))) * 100) / 100;
+    if (left <= 0) throw new ApiError(409, 'This booking is already paid');
+    await Payment.updateMany({ serviceRequestId: sr._id, status: 'created' }, { status: 'expired' }); // old unpaid checkout
+    const payment = await collect(req.customer, { amount: left, purpose: 'booking', sr, useWallet, description: `${sr.srNumber} booking` });
+    return res.json({ payment, paidFromWallet: !payment });
   }
   if (!(sr.bill?.due > 0)) throw new ApiError(409, 'Nothing is due on this request');
   if (sr.quote?.status === 'pending') throw new ApiError(409, 'Approve or reject the revised price first');
-  const payment = await payments.createOrder({ customer: req.customer, purpose: 'bill', amount: sr.bill.due, serviceRequestId: sr._id, description: `${sr.srNumber} payment` });
-  res.json({ payment });
+  const payment = await collect(req.customer, { amount: sr.bill.due, purpose: 'bill', sr, useWallet, description: `${sr.srNumber} payment` });
+  res.json({ payment, paidFromWallet: !payment });
+});
+
+/** Tax invoice PDF for a job (customer, admin, its OEM / service company). */
+exports.invoice = asyncHandler(async (req, res) => {
+  const sr = await ServiceRequest.findOne({ _id: req.params.id, ...scopeFor(req) }).lean();
+  if (!sr) throw new ApiError(404, 'Service request not found');
+  if (!sr.bill || !(sr.bill.total > 0 || sr.bill.paid > 0)) throw new ApiError(409, 'There is nothing billed on this request');
+  if (sr.status === 'pending_payment') throw new ApiError(409, 'The invoice is available once the booking is paid');
+  await invoices.serviceInvoice(sr, res);
 });
 
 exports.respondQuote = asyncHandler(async (req, res) => {
@@ -232,6 +273,7 @@ exports.reschedule = asyncHandler(async (req, res) => {
 exports.dispute = asyncHandler(async (req, res) => {
   const sr = await findMine(req);
   const { pricing: p } = await Setting.get();
+  if (p.disputesEnabled === false) throw new ApiError(403, 'Reporting a problem is turned off. Please contact support.');
   if (!['approved', 'closed', 'failed'].includes(sr.status)) throw new ApiError(409, 'You can raise a dispute once the visit is finished');
   const finishedAt = sr.closedAt || sr.approvedAt || sr.completedAt || sr.updatedAt;
   if (Date.now() - new Date(finishedAt) > (p.disputeWindowDays ?? 7) * 86400000) throw new ApiError(409, `Disputes can be raised within ${p.disputeWindowDays ?? 7} days of the visit`);

@@ -13,7 +13,8 @@ const schema = new Schema({
   cashCollected: { type: Number, default: 0 }, // collected on site by the engineer; subtracted from what the platform pays out
   netPayable: Number, // payable amount minus cash collected (negative = owed to the platform)
   approval: { type: String, enum: ['pending', 'approved', 'held'], default: 'pending' },
-  paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
+  // credited = added to the engineer / service company wallets (they withdraw from there)
+  paymentStatus: { type: String, enum: ['unpaid', 'paid', 'credited'], default: 'unpaid' },
   txnRef: String, holdReason: String,
   history: [{ status: String, at: Date, by: Schema.Types.ObjectId, note: String }],
 }, { timestamps: true });

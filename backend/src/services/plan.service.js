@@ -116,11 +116,11 @@ async function cancel(sub, actor, { reason, beyondRepair = false } = {}) {
   if (sub.status !== 'active') throw new ApiError(409, `This plan is ${sub.status}`);
   const settings = await Setting.get();
   const amount = refundFor(sub, settings, { beyondRepair });
-  const payment = sub.paymentId ? await Payment.findById(sub.paymentId) : null;
-  const refunded = payment && amount > 0 ? await require('./payment.service').refundPayment(payment, amount, reason || 'Plan cancelled') : 0;
-  Object.assign(sub, { status: 'cancelled', cancelledAt: new Date(), cancelReason: reason, refundAmount: refunded });
+  Object.assign(sub, { status: 'cancelled', cancelledAt: new Date(), cancelReason: reason, refundDue: amount });
   await sub.save();
-  if (sub.customerId) await notify([sub.customerId], `${sub.type.toUpperCase()} cancelled`, refunded ? `₹${refunded} will be refunded in 5–7 working days` : 'No refund is due for this plan', 'plan');
+  // the refund waits for the customer's choice (wallet / original payment) and the admin's approval
+  if (amount > 0) await require('./refund.service').forSubscription(sub, amount, reason || 'Plan cancelled');
+  else if (sub.customerId) await notify([sub.customerId], `${sub.type.toUpperCase()} cancelled`, 'No refund is due for this plan', 'plan');
   return sub;
 }
 

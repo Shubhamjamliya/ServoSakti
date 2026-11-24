@@ -9,6 +9,7 @@ import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
 import { humanize } from '@/shared/lib/format';
 import { inr } from '@/shared/lib/utils';
+import { ChangesBadge, ChangesDialog } from '@/shared/components/EngineerChanges';
 
 function PerformanceDialog({ engineer, onClose }) {
   const { data } = useApi(engineer ? `/engineers/${engineer._id}/performance` : null);
@@ -37,6 +38,7 @@ export default function Engineers() {
   const [version, setVersion] = useState(0);
   const [perf, setPerf] = useState(null);
   const [zonesFor, setZonesFor] = useState(null);
+  const [changesFor, setChangesFor] = useState(null);
 
   const toggle = async (row) => {
     try {
@@ -64,10 +66,11 @@ export default function Engineers() {
           { key: 'skills', label: 'Skills', render: (r) => (r.skills || []).join(', ') || '—' },
           { key: 'certifications', label: 'Brand certifications', render: (r) => (r.certifications || []).map((c) => c.brand).join(', ') || '—', csv: (r) => (r.certifications || []).map((c) => c.brand).join('; ') },
           { key: 'active', label: 'Active', render: (r) => <Badge tone={r.active ? 'green' : 'gray'}>{r.active ? 'Active' : 'Inactive'}</Badge> },
-          { key: 'status', label: 'Approval', render: (r) => <Badge>{humanize(r.status)}</Badge> },
+          { key: 'status', label: 'Approval', render: (r) => <span className="flex flex-col items-start gap-1"><Badge>{humanize(r.status)}</Badge><ChangesBadge row={r} /></span> },
         ]}
         rowActions={({ row }) => (
           <>
+            {row.pendingChanges && <Button size="sm" onClick={() => setChangesFor(row)}>Review change</Button>}
             <Button size="sm" variant="ghost" onClick={() => setPerf(row)}>Performance</Button>
             <Button size="sm" variant="ghost" onClick={() => setZonesFor(row)}>Zones</Button>
             <Button size="sm" variant="outline" onClick={() => toggle(row)}>{row.active ? 'Deactivate' : 'Activate'}</Button>
@@ -85,6 +88,7 @@ export default function Engineers() {
         mapCreate={({ brands, ...rest }) => ({ ...rest, certifications: brands.map((brand) => ({ brand })) })}
       />
       <PerformanceDialog engineer={perf} onClose={() => setPerf(null)} />
+      <ChangesDialog engineer={changesFor} onClose={() => setChangesFor(null)} onDone={() => setVersion((x) => x + 1)} />
       <Dialog open={!!zonesFor} onOpenChange={(o) => !o && setZonesFor(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>{zonesFor?.name} · service zones</DialogTitle></DialogHeader>

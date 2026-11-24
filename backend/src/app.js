@@ -23,6 +23,9 @@ const zoneRoutes = require('./routes/zone.routes');
 const catalogRoutes = require('./routes/catalog.routes');
 const planRoutes = require('./routes/plan.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const walletRoutes = require('./routes/wallet.routes');
+const refundRoutes = require('./routes/refund.routes');
+const couponRoutes = require('./routes/coupon.routes');
 
 const sys = require('./controllers/system.controller');
 
@@ -56,6 +59,9 @@ app.use('/api/zones', zoneRoutes);
 app.use('/api/catalog', catalogRoutes);
 app.use('/api/plans', planRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/refunds', refundRoutes);
+app.use('/api/coupons', couponRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 app.use(errorHandler);

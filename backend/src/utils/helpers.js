@@ -63,4 +63,11 @@ const pointInPolygon = (lat, lng, polygon) => {
   return inside;
 };
 
-module.exports = { pointInPolygon, ApiError, asyncHandler, escapeRegex, ci, istDate, istMonth, haversineKm, warrantyStatus, warrantyDaysLeft, paginate };
+/**
+ * Rupees rounded to paise. Plain Math.round(x * 100) fails on values like 56.905 (stored as 56.90499999…), so the
+ * product is first trimmed to 6 decimals, which removes the binary noise without changing any real amount.
+ */
+const toPaise = (rupees) => Math.round(Number(((Number(rupees) || 0) * 100).toFixed(6)));
+const money = (rupees) => toPaise(rupees) / 100;
+
+module.exports = { money, toPaise, pointInPolygon, ApiError, asyncHandler, escapeRegex, ci, istDate, istMonth, haversineKm, warrantyStatus, warrantyDaysLeft, paginate };

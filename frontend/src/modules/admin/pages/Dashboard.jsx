@@ -11,10 +11,11 @@ const COLORS = { Completed: '#16a34a', 'In Progress': '#0ea5e9', Pending: '#f59e
 export default function Dashboard() {
   const [period, setPeriod] = useState('overall');
   const { data: d, loading, error } = useApi(`/admin/dashboard?period=${period}`);
+  const { data: q } = useApi('/admin/pending-counts');
   const v = (x, f = num) => (loading ? '—' : f(x));
 
   return (
-    <PageShell eyebrow="Admin Overview" title="Servoshakti Control Tower" actions={<PeriodSelect value={period} onChange={setPeriod} />}>
+    <PageShell eyebrow="Admin Overview" title="Control Tower" actions={<PeriodSelect value={period} onChange={setPeriod} />}>
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard title="Pending Approvals" value={v(d?.pendingApprovals)} helper={loading ? '' : `OEM ${d?.pendingOems} · Service ${d?.pendingVendors} · Eng ${d?.pendingEngineers}`} icon={ShieldCheck} accent="bg-amber-100" path={d?.pendingOems ? '/admin/oems/approvals' : d?.pendingVendors ? '/admin/vendors/approvals' : '/admin/engineers/approvals'} />
@@ -27,7 +28,10 @@ export default function Dashboard() {
         <MetricCard title="Engineers" value={v(d?.engineers)} helper="Approved" icon={UserCog} accent="bg-emerald-100" path="/admin/engineers" />
         <MetricCard title="Customers" value={v(d?.customers)} helper="Registered" icon={Users} accent="bg-cyan-100" path="/admin/customers" />
         <MetricCard title="Open Disputes" value={v(d?.openDisputes)} helper="Payment disputes" icon={AlertTriangle} accent="bg-yellow-100" path="/admin/disputes" />
-        <MetricCard title="Pending Payments" value={v(d?.money?.unpaid, inr)} helper="Vendor amount unpaid" icon={Wallet} accent="bg-lime-100" path="/admin/payouts" />
+        <MetricCard title="Payouts to Approve" value={v(d?.money?.unpaid, inr)} helper={`${q?.payouts ?? 0} calls · credited to wallets on approval`} icon={Wallet} accent="bg-lime-100" path="/admin/payouts" />
+        <MetricCard title="Refunds to Approve" value={q ? num(q.refunds) : '—'} helper="Customer chose wallet or source" icon={CreditCard} accent="bg-rose-100" path="/admin/refunds" />
+        <MetricCard title="Withdrawals to Pay" value={q ? num(q.withdrawals) : '—'} helper="Pay by bank / UPI, then mark paid" icon={Wallet} accent="bg-sky-100" path="/admin/withdrawals" />
+        <MetricCard title="Cash Deposits" value={q ? num(q.deposits) : '—'} helper="Reported, waiting for confirmation" icon={Zap} accent="bg-amber-100" path="/admin/wallets" />
         <MetricCard title="Platform Fee" value={v(d?.money?.fee, inr)} helper="All approved calls" icon={CreditCard} accent="bg-fuchsia-100" path="/admin/settlements" />
       </div>
 

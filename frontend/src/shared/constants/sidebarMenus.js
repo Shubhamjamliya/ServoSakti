@@ -42,7 +42,8 @@ export const sidebarMenus = {
       link('Tracking', 'MapPin', '/vendor/tracking'),
     ]),
     section('Finance', [
-      link('Earnings', 'Wallet', '/vendor/earnings'),
+      link('Wallet & Cash', 'Wallet', '/vendor/wallet'),
+      link('Earnings', 'DollarSign', '/vendor/earnings'),
       link('Disputes', 'AlertTriangle', '/vendor/disputes'),
     ]),
     section('Insights', [link('Reports', 'BarChart3', '/vendor/reports')]),
@@ -72,7 +73,11 @@ export const sidebarMenus = {
     ]),
     section('Finance', [
       link('Pricing Catalogue', 'Tags', '/admin/pricing'),
-      link('Customer Payments', 'Wallet', '/admin/payments'),
+      link('Customer Payments', 'CreditCard', '/admin/payments'),
+      link('Refunds', 'Receipt', '/admin/refunds'),
+      link('Coupons', 'Tags', '/admin/coupons'),
+      link('Wallets & Cash', 'Wallet', '/admin/wallets'),
+      link('Withdrawals', 'DollarSign', '/admin/withdrawals'),
       link('Warranty Claims', 'ShieldCheck', '/admin/warranty-claims'),
       link('Rate Cards', 'DollarSign', '/admin/rate-cards'),
       link('Payouts', 'CreditCard', '/admin/payouts'),

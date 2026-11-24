@@ -33,7 +33,17 @@ const LINKS = {
   warranty: { customer: '/customer/product-passport' },
   otp: { customer: '/customer/tracking' },
   dispatch: { admin: '/admin/dispatch' },
+  new_call: { vendor_owner: '/vendor/local-calls' },
+  quote: { customer: '/customer/tracking', engineer: '/engineer/jobs' },
+  refund: { customer: '/customer/wallet', admin: '/admin/refunds' },
+  wallet: { engineer: '/engineer/earnings', vendor_owner: '/vendor/wallet', admin: '/admin/wallets' },
+  withdrawal: { engineer: '/engineer/earnings', vendor_owner: '/vendor/wallet', admin: '/admin/withdrawals' },
+  plan: { customer: '/customer/product-passport' },
+  transfer: { customer: '/customer/product-passport', admin: '/admin/product-approvals' },
+  claim: { oem: '/oem/warranty-claims', admin: '/admin/warranty-claims' },
 };
+// these need an answer quickly: the alert stays on screen and vibrates until the user acts
+const URGENT = ['offer', 'assignment', 'new_call'];
 const linkFor = (role, type) => LINKS[type]?.[role] || HOME[role] || '/';
 
 /** FCM message body with per-platform options so Android/iOS/web all show it as a high-priority alert. */
@@ -43,7 +53,7 @@ const buildMessage = (tokens, { title, body, data }, role) => ({
   data: { ...Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k, String(v)])), link: linkFor(role, data?.type), title: String(title), body: String(body || '') },
   android: { priority: 'high', notification: { channelId: 'servoshakti', sound: 'default' } },
   apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } },
-  webpush: { headers: { Urgency: 'high' }, notification: { icon: '/favicon.svg' } },
+  webpush: { headers: { Urgency: 'high' }, notification: { icon: '/favicon.svg', ...(URGENT.includes(data?.type) && { requireInteraction: true, vibrate: [400, 200, 400, 200, 400], tag: `${data.type}` , renotify: true }) } },
 });
 
 const isUnregistered = (error) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(error?.code);

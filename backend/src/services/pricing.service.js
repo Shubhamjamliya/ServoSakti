@@ -4,6 +4,8 @@ const AddOn = require('../models/AddOn');
 const PlanSubscription = require('../models/PlanSubscription');
 const Zone = require('../models/Zone');
 const { ApiError, ci, haversineKm } = require('../utils/helpers');
+const coupons = require('./coupon.service');
+const { couponDiscount } = coupons;
 
 /**
  * Customer pricing. Every amount comes from admin tables (PriceCard, AddOn, Part, Setting.pricing); nobody types a price.
@@ -17,7 +19,7 @@ const { ApiError, ci, haversineKm } = require('../utils/helpers');
  * Surcharges and add-ons are never covered. Distance is covered only when Settings → distanceUnderCoverage is off.
  */
 
-const money = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { money } = require('../utils/helpers');
 const JOB_LABEL = { pm: 'Preventive maintenance', breakdown: 'Breakdown repair', installation: 'Installation', uninstallation: 'Uninstallation', inspection: 'Inspection', other: 'Service' };
 const COVERAGE_LABEL = { warranty: 'OEM warranty', amc: 'AMC', cmc: 'CMC' };
 const SURCHARGE_LABEL = { same_day: 'Same-day slot', urgent: 'Urgent slot', sunday: 'Sunday / holiday slot', night: 'Night slot' };
@@ -112,7 +114,7 @@ function surchargeFor(slot, scheduledAt, pricing) {
  *   card       { price, visitCharge }        visitOnly  bill only the visit (rejection, no-show)
  *   parts      [{ name, qty, price, coveredBy, partWarranty }]
  */
-function buildBill({ jobType, coverage = 'none', subscription, card, addOns = [], parts = [], distance, surcharge, paymentMode, repair, damage, repeat, visitOnly, chargeVisit, gstPercent, pricing }) {
+function buildBill({ jobType, coverage = 'none', subscription, card, addOns = [], parts = [], distance, surcharge, paymentMode, repair, damage, repeat, visitOnly, chargeVisit, gstPercent, pricing, coupon }) {
   const cov = damage ? 'none' : coverage;
   const labourFree = coversLabour(cov, jobType);
   const freeNote = labourFree ? COVERAGE_LABEL[cov] : repeat ? 'Repeat visit' : undefined;
@@ -151,10 +153,17 @@ function buildBill({ jobType, coverage = 'none', subscription, card, addOns = []
 
   const sum = (kinds) => lines.filter((l) => !kinds || kinds.includes(l.kind)).reduce((a, l) => a + l.amount, 0);
   const subtotal = money(sum());
-  const discount = paymentMode === 'prepaid' ? money((sum(['service', 'visit', 'addon']) * (pricing.prepaidDiscountPercent || 0)) / 100) : 0;
+  // discounts only touch service, visit and add-on charges: prepaid first, then the coupon on what is left
+  const eligible = money(sum(['service', 'visit', 'addon']));
+  const prepaidDiscount = paymentMode === 'prepaid' ? money((eligible * (pricing.prepaidDiscountPercent || 0)) / 100) : 0;
+  const couponOff = couponDiscount(coupon, eligible, money(eligible - prepaidDiscount));
+  const discount = money(prepaidDiscount + couponOff);
   const taxable = money(subtotal - discount);
   const gst = money((taxable * (gstPercent || 0)) / 100);
-  return { lines, subtotal, discount, taxable, gstPercent, gst, total: Math.round(taxable + gst) };
+  return {
+    lines, subtotal, prepaidDiscount, couponDiscount: couponOff, couponCode: coupon?.code, couponNote: coupon && !couponOff && eligible > 0 ? `${coupon.code} needs ₹${coupon.minOrder} of service charges` : undefined,
+    discount, taxable, gstPercent, gst, total: Math.round(taxable + gst),
+  };
 }
 
 /** Writes what has been paid against a bill: due = still to collect, excess = to refund. */
@@ -187,7 +196,7 @@ function upfrontFor(bill, { paymentMode, jobType, mustPrepayVisit, card }) {
 /**
  * Everything needed to book: coverage, the estimate and the upfront amount. Throws with a clear message when something is not priced.
  */
-async function quoteBooking({ passport, subtypeId, brand, jobType, slot, scheduledAt, addOnIds = [], location, zoneId, paymentMode = 'postpaid', repeat = false, firstBooking = false, settings, now = new Date() }) {
+async function quoteBooking({ passport, subtypeId, brand, jobType, slot, scheduledAt, addOnIds = [], location, zoneId, paymentMode = 'postpaid', repeat = false, firstBooking = false, settings, now = new Date(), couponCode, customerId, strictCoupon = false }) {
   const pricing = settings.pricing || {};
   const subtype = subtypeId ? await Subtype.findById(subtypeId).lean() : null;
   if (!subtype) throw new ApiError(400, 'Choose the product type (for example Split AC 1.5 Ton) first');
@@ -208,17 +217,24 @@ async function quoteBooking({ passport, subtypeId, brand, jobType, slot, schedul
 
   const distance = distanceCharge(await distanceFromHub(zoneId, location), pricing);
   const surcharge = surchargeFor(when.slot, when.scheduledAt, pricing);
-  const bill = buildBill({ jobType, coverage, subscription, card, addOns, distance, surcharge, paymentMode, repeat, gstPercent: settings.gstPercent, pricing });
+  // coupon: an invalid code fails the booking, but on the estimate it only shows a message
+  let coupon = null;
+  let couponError;
+  if (couponCode) {
+    try { coupon = await coupons.validate(couponCode, { customerId, jobType, subtypeId: subtype._id, firstBooking, at: now }); } catch (e) { if (strictCoupon) throw e; couponError = e.message; }
+  }
+  const couponSnap = coupon ? coupons.snapshotOf(coupon) : undefined;
+  const bill = buildBill({ jobType, coverage, subscription, card, addOns, distance, surcharge, paymentMode, repeat, gstPercent: settings.gstPercent, pricing, coupon: couponSnap });
   const mustPrepayVisit = !passport?.verified || firstBooking;
   bill.upfront = upfrontFor(bill, { paymentMode, jobType, mustPrepayVisit, card });
 
   return {
-    subtype, card, coverage, subscription, addOns, distance, surcharge, slot: when.slot, scheduledAt: when.scheduledAt, bill,
+    subtype, card, coverage, subscription, addOns, distance, surcharge, slot: when.slot, scheduledAt: when.scheduledAt, bill, coupon, couponError,
     snapshot: {
       subtypeId: subtype._id, subtypeName: subtype.name, jobType, card: { _id: card._id, price: card.price, visitCharge: card.visitCharge, brand: card.brand },
       addOns: addOns.map((a) => ({ _id: a._id, name: a.name, price: a.price })), distance, surcharge, gstPercent: settings.gstPercent,
       pricing: { distanceUnderCoverage: pricing.distanceUnderCoverage, prepaidDiscountPercent: pricing.prepaidDiscountPercent, surchargeEngineerShare: pricing.surchargeEngineerShare },
-      repeat, coverage, subscriptionId: subscription?._id, at: now,
+      repeat, coverage, subscriptionId: subscription?._id, at: now, coupon: couponSnap,
     },
   };
 }
@@ -240,7 +256,7 @@ async function billForState(sr, state, { visitOnly = false, chargeVisit = false 
     bill: buildBill({
       jobType: state.jobType, coverage, subscription, card, addOns: snap.addOns || [], parts: state.parts || [], distance: snap.distance, surcharge: snap.surcharge,
       paymentMode: sr.paymentMode, repair: state.repair, damage: state.damage, repeat: snap.repeat, visitOnly, chargeVisit,
-      gstPercent: snap.gstPercent ?? 18, pricing: snap.pricing || {},
+      gstPercent: snap.gstPercent ?? 18, pricing: snap.pricing || {}, coupon: snap.coupon,
     }),
   };
 }

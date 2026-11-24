@@ -23,7 +23,9 @@ exports.createProduct = asyncHandler(async (req, res) => {
 
 exports.updateProduct = asyncHandler(async (req, res) => {
   const filter = { _id: req.params.id, ...(req.user.role === 'oem' && { oemId: req.user.companyId }) };
-  const doc = await Product.findOneAndUpdate(filter, req.body, { new: true, runValidators: true });
+  // only catalogue fields; the owner OEM never changes
+  const body = Object.fromEntries(['brand', 'model', 'category', 'warrantyMonths', 'subtypeId'].filter((k) => k in req.body).map((k) => [k, req.body[k] === '' ? null : req.body[k]]));
+  const doc = await Product.findOneAndUpdate(filter, body, { new: true, runValidators: true });
   if (!doc) throw new ApiError(404, 'Product not found');
   res.json(doc);
 });

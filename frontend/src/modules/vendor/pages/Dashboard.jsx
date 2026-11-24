@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [period, setPeriod] = useState('overall');
   const { data: d, loading } = useApi(`/service-requests/stats?period=${period}`);
   const { data: money } = useApi('/settlements/summary');
+  const { data: wallet } = useApi('/wallet/me');
   const { data: engineers } = useApi('/engineers?status=approved&limit=1');
   const { data: recent, reload: reloadRecent } = useApi('/service-requests?limit=6');
   const { data: offers, reload: reloadOffers } = useApi('/dispatch/offers');
@@ -49,7 +50,9 @@ export default function Dashboard() {
         <MetricCard title="SLA Breaches" value={v(d?.breaches)} helper="Past TAT" icon={AlertTriangle} accent="bg-red-100" path="/vendor/local-calls" />
         <MetricCard title="Engineers" value={engineers ? num(engineers.total) : '—'} helper="Approved" icon={UserCog} accent="bg-violet-100" path="/vendor/engineers" />
         <MetricCard title="Billable" value={money ? inr(money.totals.vendorAmount) : '—'} helper={`${money?.totals.calls ?? 0} approved calls`} icon={Wallet} accent="bg-emerald-100" path="/vendor/earnings" />
-        <MetricCard title="Awaiting Payment" value={money ? inr(money.totals.pending) : '—'} helper="Approved, unpaid" icon={Clock} accent="bg-amber-100" path="/vendor/earnings" />
+        <MetricCard title="Wallet Balance" value={wallet ? inr(wallet.balance) : '—'} helper={wallet ? `Withdrawable ${inr(wallet.withdrawable)}` : ''} icon={Wallet} accent="bg-sky-100" path="/vendor/wallet" />
+        <MetricCard title="Customer Cash Held" value={wallet ? inr(wallet.cashHeld) : '—'} helper="Deposit it to the platform" icon={Clock} accent="bg-amber-100" path="/vendor/wallet" />
+        <MetricCard title="Awaiting Approval" value={money ? inr(money.totals.pending) : '—'} helper="Calls still in review" icon={Clock} accent="bg-orange-100" path="/vendor/earnings" />
         <MetricCard title="First-time Fix" value={v(d?.firstTimeFixPercent, '%')} helper="Fixed in one visit" icon={CheckCircle2} accent="bg-fuchsia-100" path="/vendor/reports" />
         <MetricCard title="Repeat Calls" value={v(d?.repeatPercent, '%')} helper="Same serial in 30 days" icon={AlertTriangle} accent="bg-rose-100" path="/vendor/reports" />
       </div>

@@ -27,13 +27,13 @@ export default function Earnings() {
         extraActions={<Button variant="outline" onClick={() => downloadFile('/settlements/export', 'earnings.csv').catch((e) => toast.error(e.message))}><DownloadIcon className="h-4 w-4" /> Export all (CSV)</Button>}
         filterKey="paymentStatus"
         filterLabel="All payments"
-        filterOptions={[{ value: 'unpaid', label: 'Unpaid' }, { value: 'paid', label: 'Paid' }]}
+        filterOptions={[{ value: 'unpaid', label: 'Waiting for approval' }, { value: 'credited', label: 'In wallet' }]}
         header={
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard title="Billable" value={t ? inr(t.vendorAmount) : '—'} helper={`${t?.calls ?? 0} approved calls`} icon={Receipt} accent="bg-sky-100" />
-            <MetricCard title="Awaiting Payment" value={t ? inr(t.pending) : '—'} helper="Approved, unpaid" icon={Clock} accent="bg-amber-100" />
+            <MetricCard title="In Wallet" value={t ? inr(t.credited) : '—'} helper="Approved and added to your wallet" icon={Clock} accent="bg-amber-100" path="/vendor/wallet" />
             <MetricCard title="Engineer Payouts" value={t ? inr(t.engineerAmount) : '—'} helper="Owed to your engineers" icon={Wallet} accent="bg-green-100" />
-            <MetricCard title="Platform Fee" value={t ? inr(t.platformFee) : '—'} helper="Servoshakti service fee" icon={CreditCard} accent="bg-violet-100" />
+            <MetricCard title="Platform Fee" value={t ? inr(t.platformFee) : '—'} helper="Platform service fee" icon={CreditCard} accent="bg-violet-100" />
           </div>
         }
         columns={[
@@ -44,14 +44,14 @@ export default function Earnings() {
           { key: 'engineerAmount', label: 'Engineer share', render: (r) => inr(r.engineerAmount) },
           { key: 'platformFee', label: 'Platform fee', render: (r) => inr(r.platformFee) },
           { key: 'approval', label: 'Approval', render: (r) => <Badge>{r.approval[0].toUpperCase() + r.approval.slice(1)}</Badge> },
-          { key: 'paymentStatus', label: 'Payment', render: (r) => <Badge>{r.paymentStatus[0].toUpperCase() + r.paymentStatus.slice(1)}</Badge> },
+          { key: 'paymentStatus', label: 'Payment', render: (r) => <Badge tone={r.paymentStatus === 'unpaid' ? 'amber' : 'green'}>{r.paymentStatus === 'unpaid' ? (r.approval === 'held' ? 'Held' : 'Waiting') : 'In wallet'}</Badge> },
           { key: 'txnRef', label: 'Txn ref', render: (r) => r.txnRef || '—' },
         ]}
         rowActions={({ row }) => row.paymentStatus === 'unpaid' && <Button size="sm" variant="outline" onClick={() => setDisputing(row)}>Dispute</Button>}
       />
       <PromptDialog
         open={!!disputing} onOpenChange={(o) => !o && setDisputing(null)} title={`Raise dispute · ${disputing?.srNumber}`}
-        description="Tell Servoshakti what looks wrong with this payout. An admin will review it." label="Reason" required confirmLabel="Raise dispute"
+        description="Tell the platform what looks wrong with this payout. An admin will review it." label="Reason" required confirmLabel="Raise dispute"
         onConfirm={async (reason) => { await api('/settlements/disputes', { method: 'POST', body: { payoutId: disputing._id, reason } }); toast.success('Dispute raised'); }}
       />
     </>

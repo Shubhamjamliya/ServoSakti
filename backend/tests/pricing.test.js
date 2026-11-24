@@ -19,6 +19,7 @@ const ProductPassport = require('../src/models/ProductPassport');
 const Payment = require('../src/models/Payment');
 const Payout = require('../src/models/Payout');
 const PlanSubscription = require('../src/models/PlanSubscription');
+const RefundRequest = require('../src/models/RefundRequest');
 const { buildBill, distanceCharge, surchargeFor } = require('../src/services/pricing.service');
 
 const api = () => request(app);
@@ -176,7 +177,7 @@ test('booking: estimate, visit prepaid for an unverified product, revised quote 
   expect(payout.netPayable).toBe(120 + 300 - 590); // engineer holds more cash than the job pays out
 });
 
-test('lower price on site is applied and refunded automatically; webhook confirms payment', async () => {
+test('lower price on site is applied; the difference waits as a refund request; webhook confirms payment', async () => {
   const passport = await api().post('/api/products/passports').set(auth(ctx.customer)).send({ brand: 'LG', serialNumber: 'LG-2', subtypeId: ctx.s20, purchaseDate: new Date().toISOString() });
   expect(passport.status).toBe(201);
   ctx.p2 = passport.body._id;
@@ -198,15 +199,20 @@ test('lower price on site is applied and refunded automatically; webhook confirm
   expect(v.body.applied).toBe(true);
   const sr = await ServiceRequest.findById(srId);
   expect(sr.bill.total).toBe(671);
-  expect(sr.bill.refunded).toBe(113);
+  expect(sr.bill.excess).toBe(113); // owed back, but not refunded automatically
+  expect(sr.bill.refunded).toBe(0);
   expect(sr.bill.due).toBe(0);
-  expect((await Payment.findById(order._id)).refundedAmount).toBe(113);
+  const rr = await RefundRequest.findOne({ serviceRequestId: srId }).lean();
+  expect(rr.amount).toBe(113);
+  expect(rr.status).toBe('awaiting_customer');
+  expect((await Payment.findById(order._id)).refundedAmount).toBe(0);
 
   // admin ends the visited job: the customer keeps paying only the visit charge, the rest comes back
   const failed = await api().patch(`/api/field/${srId}/fail`).set(auth(ctx.admin)).send({ reason: 'Customer asked to stop' });
   expect(failed.body.status).toBe('failed');
   expect(failed.body.bill.total).toBe(223);
-  expect(failed.body.bill.refunded).toBe(784 - 223);
+  expect(failed.body.bill.excess).toBe(784 - 223);
+  expect((await RefundRequest.findOne({ serviceRequestId: srId })).amount).toBe(784 - 223); // the same request, updated
 });
 
 test('customer rejects the revised price: only the visit charge is kept', async () => {
@@ -256,7 +262,8 @@ test('AMC: inspection rule, purchase, free PM, waiting period, cancellation refu
   await api().post(`/api/plans/subscriptions/${active._id}/cancel`).set(auth(ctx.customer)).send({}).expect(200);
   const cancelled = await PlanSubscription.findById(active._id);
   expect(cancelled.status).toBe('cancelled');
-  expect(cancelled.refundAmount).toBe(2264); // within 7 days, no visit used
+  expect(cancelled.refundDue).toBe(2264); // within 7 days, no visit used
+  expect((await RefundRequest.findOne({ subscriptionId: active._id })).amount).toBe(2264);
 });
 
 test('late cancellation fee becomes a due that blocks the next booking until paid', async () => {
