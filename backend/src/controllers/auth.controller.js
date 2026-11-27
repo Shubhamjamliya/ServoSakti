@@ -2,10 +2,13 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { Oem, Vendor, Engineer, Customer, MODEL_BY_ROLE, ROLES, phoneTaken } = require('../models/accounts');
+const Admin = require('../models/Admin');
 const Otp = require('../models/Otp');
 const { ApiError, asyncHandler } = require('../utils/helpers');
 const { notifyAdmins } = require('../services/realtime');
 const { sendOtpSms } = require('../utils/sms');
+const { sendAdminResetOtpEmail } = require('../utils/mailer');
+const Setting = require('../models/Setting');
 
 const sign = (id, role) => jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 /** Customers, engineers and service companies sign in with a mobile OTP; admin and OEM use a password. */
@@ -75,6 +78,7 @@ exports.registerEngineer = asyncHandler(async (req, res) => {
   const { name, email, city, skills = [], certifications = [], serviceTerritories = [] } = req.body;
   const phone = verifiedPhone(req.body.signupToken, 'engineer', req.body.phone);
   if (!name) throw new ApiError(400, 'Name is required');
+  if ((await Setting.get()).pricing?.independentEngineers === false) throw new ApiError(403, 'Joining as an independent engineer is closed. Ask your service company to add you.');
   await requirePhone('engineer', phone);
   await Engineer.create({ name, phone, email, passwordHash: await randomHash(), city, skills, certifications, serviceTerritories, engineerType: 'independent', status: 'pending' });
   notifyAdmins('New engineer registration', `${name} (independent) is awaiting approval`, 'approval');
@@ -102,6 +106,103 @@ exports.login = asyncHandler(async (req, res) => {
   res.json({ token: sign(doc._id, role), user: publicUser(doc, role) });
 });
 
+/** Admin Forgot Password Step 1: send a 6-digit verification code to the admin's email via SMTP. */
+exports.adminForgotPassword = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ApiError(400, 'Enter a valid email address');
+  }
+  const admin = await Admin.findOne({ email });
+  if (!admin) {
+    return res.json({ message: 'If an admin account exists for that email, a 6-digit verification code has been sent.' });
+  }
+  if (admin.active === false) {
+    throw new ApiError(403, 'Account is deactivated');
+  }
+
+  const windowMs = (Number(process.env.OTP_RATE_WINDOW) || 600) * 1000;
+  const recent = await Otp.countDocuments({ role: 'admin_reset', phone: email, createdAt: { $gt: new Date(Date.now() - windowMs) } });
+  if (recent >= 3) {
+    throw new ApiError(429, 'Too many reset requests. Try again in a few minutes.');
+  }
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const ttlMs = 10 * 60 * 1000;
+  const otpDoc = await Otp.create({
+    role: 'admin_reset',
+    phone: email,
+    codeHash: hashOtp(code),
+    expiresAt: new Date(Date.now() + ttlMs),
+  });
+
+  try {
+    await sendAdminResetOtpEmail({ to: admin.email, name: admin.name, code });
+  } catch (err) {
+    await Otp.deleteOne({ _id: otpDoc._id });
+    console.error('[MAIL]', err.message);
+    throw new ApiError(502, 'Could not send the reset email. Please check SMTP configuration.');
+  }
+
+  res.json({ message: 'If an admin account exists for that email, a 6-digit verification code has been sent.' });
+});
+
+/** Admin Forgot Password Step 2: verify the 6-digit code and issue a short-lived reset token. */
+exports.adminVerifyResetOtp = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const code = String(req.body.otp || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ApiError(400, 'Enter a valid email address');
+  }
+  if (!/^\d{6}$/.test(code)) {
+    throw new ApiError(400, 'Enter the 6-digit verification code');
+  }
+
+  const otp = await Otp.findOne({ role: 'admin_reset', phone: email }).sort({ createdAt: -1 });
+  if (!otp || otp.expiresAt < new Date()) {
+    throw new ApiError(400, 'Verification code expired. Request a new one.');
+  }
+  if (otp.attempts >= 5) {
+    throw new ApiError(429, 'Too many wrong attempts. Request a new verification code.');
+  }
+  if (otp.codeHash !== hashOtp(code)) {
+    await Otp.updateOne({ _id: otp._id }, { $inc: { attempts: 1 } });
+    throw new ApiError(401, 'Incorrect verification code');
+  }
+
+  const admin = await Admin.findOne({ email });
+  if (!admin) throw new ApiError(404, 'Admin account not found');
+  if (admin.active === false) throw new ApiError(403, 'Account is deactivated');
+
+  await Otp.deleteMany({ role: 'admin_reset', phone: email });
+  const resetToken = jwt.sign(
+    { id: admin._id, role: 'admin', purpose: 'admin_password_reset' },
+    process.env.JWT_SECRET,
+    { expiresIn: '10m' }
+  );
+  res.json({ resetToken });
+});
+
+/** Admin Forgot Password Step 3: set the new password using the verified reset token. */
+exports.adminResetPassword = asyncHandler(async (req, res) => {
+  const { resetToken, newPassword } = req.body;
+  if (!resetToken) throw new ApiError(400, 'Reset token is required');
+  let payload;
+  try {
+    payload = jwt.verify(resetToken, process.env.JWT_SECRET);
+  } catch {
+    throw new ApiError(401, 'Reset session expired. Please verify your email again.');
+  }
+  if (payload.purpose !== 'admin_password_reset' || payload.role !== 'admin') {
+    throw new ApiError(401, 'Invalid reset token');
+  }
+
+  const passwordHash = await hash(newPassword);
+  const updated = await Admin.findByIdAndUpdate(payload.id, { passwordHash });
+  if (!updated) throw new ApiError(404, 'Admin account not found');
+
+  res.json({ message: 'Password updated successfully. You can now sign in.' });
+});
+
 /** Password portals (OEM): tells the login screen whether to ask for a password or show onboarding. */
 exports.checkAccount = asyncHandler(async (req, res) => {
   const { role } = req.body;
@@ -114,7 +215,17 @@ exports.checkAccount = asyncHandler(async (req, res) => {
 const useDefaultOtp = () => process.env.USE_DEFAULT_OTP === 'true';
 const hashOtp = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
 
-/** Step 1: text a 4-digit code (always 1234 while USE_DEFAULT_OTP=true). */
+/**
+ * STATIC_OTP_PHONE + STATIC_OTP_CODE: one number (e.g. for app-store review or demos) that always signs in with a fixed
+ * code, even while live SMS OTP is on. No SMS is sent and it is not rate limited. Works for every OTP login role.
+ */
+function staticOtpFor(phone) {
+  const number = String(process.env.STATIC_OTP_PHONE || '').trim();
+  const code = String(process.env.STATIC_OTP_CODE || '').trim();
+  return number && /^\d{4}$/.test(code) && number === phone ? code : null;
+}
+
+/** Step 1: text a 4-digit code (always 1234 while USE_DEFAULT_OTP=true; the static code for STATIC_OTP_PHONE). */
 exports.sendOtp = asyncHandler(async (req, res) => {
   const { role } = req.body;
   const phone = String(req.body.phone || '').trim();
@@ -123,18 +234,19 @@ exports.sendOtp = asyncHandler(async (req, res) => {
   const doc = await MODEL_BY_ROLE[role].findOne({ phone });
   if (doc) assertCanSignIn(doc, role); // a new number still gets an OTP, then goes to onboarding
 
-  if (!useDefaultOtp()) {
+  const fixed = staticOtpFor(phone) || (useDefaultOtp() ? '1234' : null);
+  if (!fixed) {
     const windowMs = (Number(process.env.OTP_RATE_WINDOW) || 600) * 1000;
     const recent = await Otp.countDocuments({ role, phone, createdAt: { $gt: new Date(Date.now() - windowMs) } });
     if (recent >= (Number(process.env.OTP_RATE_LIMIT) || 3)) throw new ApiError(429, 'Too many OTP requests. Try again in a few minutes.');
   }
-  const code = useDefaultOtp() ? '1234' : String(crypto.randomInt(1000, 10000));
+  const code = fixed || String(crypto.randomInt(1000, 10000));
   const ttlMs = (Number(process.env.OTP_EXPIRY_SECONDS) || (Number(process.env.OTP_EXPIRY_MINUTES) || 5) * 60) * 1000;
   await Otp.create({ role, phone, codeHash: hashOtp(code), expiresAt: new Date(Date.now() + ttlMs) });
-  if (!useDefaultOtp()) {
+  if (!fixed) {
     try { await sendOtpSms(phone, code); } catch (e) { console.error('[SMS]', e.message); throw new ApiError(502, 'Could not send the OTP. Please try again.'); }
   }
-  res.json({ message: 'OTP sent', expiresInSeconds: ttlMs / 1000, defaultOtp: useDefaultOtp() });
+  res.json({ message: 'OTP sent', expiresInSeconds: ttlMs / 1000 });
 });
 
 /** Step 2: check the code and sign in. */

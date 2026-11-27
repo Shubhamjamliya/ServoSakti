@@ -7,6 +7,8 @@ import { useAuth } from '@/shared/context/AuthContext';
 import BrandMark, { useBrand } from '@/shared/components/BrandMark';
 import { AUTH_ROLES } from '@/shared/constants/authRoles';
 import Register from './Register';
+import AdminLogin from '@/modules/admin/pages/AdminLogin';
+import OemLogin from '@/modules/oem/pages/OemLogin';
 import CustomerLogin from '@/modules/customer/pages/CustomerLogin';
 import EngineerLogin from '@/modules/engineer/pages/EngineerLogin';
 import { api } from '@/shared/lib/api';
@@ -58,6 +60,12 @@ function OtpBoxes({ value, onChange, autoFocus, disabled }) {
 
 /** Login for one account type, mounted at /<portal>/login. Customer, engineer and service company use a mobile OTP; admin and OEM a password. */
 export default function Login({ portal }) {
+  if (portal === 'admin') {
+    return <AdminLogin />;
+  }
+  if (portal === 'oem') {
+    return <OemLogin />;
+  }
   if (portal === 'customer') {
     return <CustomerLogin />;
   }
@@ -74,7 +82,6 @@ export default function Login({ portal }) {
   const [onboarding, setOnboarding] = useState(null); // { phone, signupToken? } once we know the number is new
   const [pwStep, setPwStep] = useState('phone'); // OEM only: 'phone' | 'password'
   const [otp, setOtp] = useState('');
-  const [defaultOtp, setDefaultOtp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const byEmail = cfg.identifier === 'email';
@@ -94,7 +101,6 @@ export default function Login({ portal }) {
     if (!/^\d{10}$/.test(id)) { setError('Enter a valid 10-digit mobile number'); return; }
     return run(async () => {
       const res = await api('/auth/send-otp', { method: 'POST', body: { role: cfg.role, phone: id } });
-      setDefaultOtp(!!res.defaultOtp);
       setOtp('');
       setStep('otp');
     });
@@ -124,7 +130,7 @@ export default function Login({ portal }) {
     return run(async () => { await login(cfg.role, { [cfg.identifier]: id.trim(), password }); nav(cfg.base, { replace: true }); });
   };
 
-  const resetToPhone = () => { setStep('phone'); setOtp(''); setError(''); setDefaultOtp(false); };
+  const resetToPhone = () => { setStep('phone'); setOtp(''); setError(''); };
 
   const submitBtn = 'mt-6 h-12 w-full rounded-xl text-base font-bold';
 
@@ -225,11 +231,6 @@ export default function Login({ portal }) {
               <p className="mt-1.5 text-sm text-neutral-500">
                 Enter the {OTP_LENGTH}-digit code sent to <span className="font-bold text-neutral-900">+91 {id}</span>
               </p>
-              {defaultOtp && (
-                <div className="mt-4 inline-block rounded-md bg-amber-100 px-3 py-2">
-                  <span className="text-xs text-amber-800">Dev mode: OTP is <span className="font-bold">1234</span></span>
-                </div>
-              )}
               <div className="mt-8">
                 <OtpBoxes value={otp} disabled={loading} autoFocus onChange={(v) => { setOtp(v); setError(''); if (v.length === OTP_LENGTH) verify(v); }} />
               </div>

@@ -59,6 +59,7 @@ exports.assign = asyncHandler(async (req, res) => {
   if (!['verified', 'offered', 'unassigned', 'assigned'].includes(sr.status)) throw new ApiError(409, `Cannot assign a request that is ${sr.status}`);
   const eng = await Engineer.findOne({ _id: req.body.engineerId, status: 'approved', active: true });
   if (!eng) throw new ApiError(400, 'Engineer not found or not approved');
+  if (eng.engineerType === 'independent' && (await Setting.get()).pricing?.independentEngineers === false) throw new ApiError(409, 'Independent engineers are turned off in Settings');
   const isAdmin = req.user.role === 'admin';
   if (!isAdmin && String(eng.companyId) !== req.user.companyId) throw new ApiError(403, 'You can only assign your own engineers');
   await DispatchLog.updateMany({ serviceRequestId: sr._id, outcome: 'pending' }, { outcome: 'override', reason: 'Superseded by manual assignment', respondedAt: new Date() });

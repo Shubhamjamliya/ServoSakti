@@ -8,6 +8,7 @@ const Setting = require('../models/Setting');
 const { Engineer, Vendor, Customer } = require('../models/accounts');
 const { ApiError, asyncHandler, paginate } = require('../utils/helpers');
 const wallets = require('../services/wallet.service');
+const payments = require('../services/payment.service');
 const { notify, notifyAdmins, audit } = require('../services/realtime');
 
 const { toPaise, toRupees } = wallets;
@@ -70,6 +71,19 @@ exports.list = asyncHandler(async (req, res) => {
   const data = await paginate(Wallet, filter, req, { sort: { balance: -1 } });
   data.items = await withNames(data.items.map((w) => ({ ...w, balance: toRupees(w.balance), cashHeld: toRupees(w.cashHeld) })));
   res.json(data);
+});
+
+/* ---- customer top-up (Razorpay) ---- */
+const TOPUP_MIN = 10;
+const TOPUP_MAX = 50000;
+
+/** Creates a Razorpay order; the wallet is credited once the payment is verified (checkout callback or webhook). */
+exports.topup = asyncHandler(async (req, res) => {
+  const amount = Math.round(Number(req.body.amount) * 100) / 100;
+  if (!(amount >= TOPUP_MIN && amount <= TOPUP_MAX)) throw new ApiError(400, `Add between ₹${TOPUP_MIN} and ₹${TOPUP_MAX}`);
+  const checkout = await payments.createOrder({ customer: req.customer, purpose: 'wallet_topup', amount, description: 'Wallet top-up' });
+  audit(req.user, 'wallet.topup.start', 'Payment', checkout.paymentId, { amount });
+  res.status(201).json(checkout);
 });
 
 /* ---- bank details (engineer, service company) ---- */

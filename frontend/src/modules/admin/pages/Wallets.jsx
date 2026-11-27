@@ -15,7 +15,7 @@ import { cn, inr } from '@/shared/lib/utils';
 
 const KIND = {
   job_earning: 'Job earning', cash_collected: 'Cash collected on site', cash_handover: 'Cash handed over', cash_deposit: 'Cash deposited',
-  withdrawal: 'Withdrawal', withdrawal_reversal: 'Withdrawal returned', refund: 'Refund', wallet_payment: 'Paid from wallet', adjustment: 'Adjustment',
+  withdrawal: 'Withdrawal', withdrawal_reversal: 'Withdrawal returned', refund: 'Refund', wallet_payment: 'Paid from wallet', topup: 'Wallet top-up', adjustment: 'Adjustment',
 };
 const TYPE_LABEL = { engineer: 'Engineer', vendor: 'Service company', customer: 'Customer' };
 const signed = (t) => <span className={cn('font-semibold', t.direction === 'credit' ? 'text-emerald-700' : 'text-red-600')}>{t.direction === 'credit' ? '+' : '−'}{inr(t.amount)}</span>;

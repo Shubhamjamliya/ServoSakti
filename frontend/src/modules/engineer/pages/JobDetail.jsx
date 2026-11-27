@@ -155,7 +155,6 @@ export default function JobDetail() {
   const { data: sr, loading, error, reload } = useApi(`/service-requests/${id}`);
   const [form, setForm] = useState(null);
   const [otp, setOtp] = useState('');
-  const [devOtp, setDevOtp] = useState('');
   const [busy, setBusy] = useState('');
   const [problem, setProblem] = useState('');
 
@@ -175,7 +174,7 @@ export default function JobDetail() {
   const checkIn = () => run('checkin', async () => api(`/field/${id}/check-in`, { method: 'POST', body: await getPosition() }), 'Checked in at site');
   const saveReport = () => api(`/field/${id}/report`, { method: 'PATCH', body: { ...form, readings: parseReadings(form.readings) } });
   const save = () => run('save', saveReport, 'Progress saved');
-  const sendOtp = () => run('otp', async () => { await saveReport(); const r = await api(`/field/${id}/otp`, { method: 'POST' }); setDevOtp(r.devOtp || ''); }, 'OTP sent to customer');
+  const sendOtp = () => run('otp', async () => { await saveReport(); await api(`/field/${id}/otp`, { method: 'POST' }); }, 'OTP sent to customer');
   const verifyOtp = () => run('verify', () => api(`/field/${id}/otp/verify`, { method: 'POST', body: { otp } }), 'Customer confirmed');
   const submit = () => run('submit', async () => { await saveReport(); await api(`/field/${id}/submit`, { method: 'POST' }); }, 'eFSR submitted for review');
 
@@ -254,7 +253,6 @@ export default function JobDetail() {
             <Panel className="space-y-3">
               <p className="text-[12.5px] text-[#5d667a]">Ask the customer for the OTP shown in their app to confirm the service is complete.</p>
               <button type="button" className={secondaryBtn} disabled={!!busy} onClick={sendOtp}>Send OTP to customer</button>
-              {devOtp && <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">Dev mode OTP: <b>{devOtp}</b></p>}
               {sr.otp?.verified
                 ? <p className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[12.5px] font-semibold text-emerald-700"><ShieldCheck className="h-4 w-4" /> Customer confirmed</p>
                 : (

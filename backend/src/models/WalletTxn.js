@@ -15,6 +15,7 @@ const KINDS = [
   'withdrawal_reversal',  // withdrawal rejected (money back)
   'refund',               // customer refund to wallet
   'wallet_payment',       // customer paid a bill from the wallet
+  'topup',                // customer added money to the wallet (Razorpay)
   'adjustment',           // manual correction by the admin
 ];
 

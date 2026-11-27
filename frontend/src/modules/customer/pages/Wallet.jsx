@@ -1,13 +1,51 @@
 import { useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, CreditCard, Hourglass, Wallet as WalletIcon } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, CreditCard, Hourglass, Plus, Wallet as WalletIcon } from 'lucide-react';
 import { Empty, Panel, Screen } from '@/shared/components/Mobile';
 import { api } from '@/shared/lib/api';
+import { payWith } from '@/shared/lib/razorpay';
 import { useApi } from '@/shared/lib/useApi';
 import { useToast } from '@/shared/context/ToastContext';
 import { fmtDateTime } from '@/shared/lib/format';
 import { cn, inr } from '@/shared/lib/utils';
 
-const KIND = { refund: 'Refund', wallet_payment: 'Paid from wallet', adjustment: 'Adjustment by support' };
+const KIND = { refund: 'Refund', wallet_payment: 'Paid from wallet', adjustment: 'Adjustment by support', topup: 'Added money' };
+const QUICK = [200, 500, 1000, 2000];
+
+/** Add money to the wallet through Razorpay. The balance updates once the server has verified the payment. */
+function TopUp({ onDone }) {
+  const toast = useToast();
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const value = Number(amount);
+  const add = async () => {
+    setBusy(true);
+    try {
+      const payment = await api('/wallet/topup', { method: 'POST', body: { amount: value } });
+      await payWith(payment);
+      toast.success(`${inr(value)} added to your wallet`);
+      setAmount('');
+      onDone();
+    } catch (e) { toast.error(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <Panel className="space-y-2.5">
+      <p className="text-[14px] font-bold text-[#0b1324]">Add money</p>
+      <div className="flex items-center rounded-xl border border-[#d0d5dd] bg-white px-3 focus-within:border-[#1456d8]">
+        <span className="text-[15px] font-bold text-[#5d667a]">₹</span>
+        <input type="number" inputMode="numeric" min="10" max="50000" placeholder="Enter amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-transparent px-2 py-2.5 text-[15px] font-semibold text-[#0b1324] outline-none" />
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {QUICK.map((q) => (
+          <button key={q} type="button" onClick={() => setAmount(String(q))} className={cn('rounded-lg border px-1 py-1.5 text-[12.5px] font-semibold', value === q ? 'border-[#1456d8] bg-[#eef3fd] text-[#1456d8]' : 'border-[#d0d5dd] bg-white text-[#344054]')}>+{inr(q)}</button>
+        ))}
+      </div>
+      <button type="button" disabled={busy || !(value >= 10 && value <= 50000)} onClick={add} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#1456d8] py-2.5 text-[13.5px] font-bold text-white disabled:opacity-50">
+        <Plus className="h-4 w-4" />{busy ? 'Processing...' : value > 0 ? `Add ${inr(value)}` : 'Add money'}
+      </button>
+      <p className="text-[11px] text-[#5d667a]">Pay securely with UPI, card or net banking via Razorpay. Min ₹10, max ₹50,000.</p>
+    </Panel>
+  );
+}
 const STATUS = {
   awaiting_customer: ['Choose where to refund', 'bg-amber-100 text-amber-800'],
   pending_approval: ['Waiting for approval', 'bg-sky-100 text-sky-800'],
@@ -60,12 +98,14 @@ export default function Wallet() {
   const others = items.filter((r) => r.status !== 'awaiting_customer');
 
   return (
-    <Screen back="/customer/profile" title="Wallet & refunds" subtitle="Refunds you keep in the app and how you used them">
+    <Screen back="/customer/profile" title="Wallet & refunds" subtitle="Add money, refunds you keep in the app and how you used them">
       <div className="rounded-[20px] bg-gradient-to-br from-[#1456d8] to-[#0b3a9c] p-4 text-white shadow-lg shadow-[#1456d8]/20">
         <p className="text-[12px] font-medium opacity-80">Wallet balance</p>
         <p className="mt-0.5 text-[30px] font-extrabold">{inr(w?.balance || 0)}</p>
         <p className="text-[11.5px] opacity-80">Tick “Use wallet balance” when you book or pay to use it.</p>
       </div>
+
+      <TopUp onDone={reload} />
 
       {waiting.length > 0 && <div className="space-y-2">{waiting.map((r) => <ChooseRefund key={r._id} r={r} onDone={reload} />)}</div>}
 

@@ -92,6 +92,9 @@ function PricingSettings({ p, onChange }) {
           <div className="col-span-2">
             <YesNo label="Customers can report a problem after a visit" value={p.disputesEnabled} onChange={(v) => set('disputesEnabled', v)} yes="On — within the window below" no="Off — the button is hidden" />
           </div>
+          <div className="col-span-2">
+            <YesNo label="Independent engineers (no service company)" value={p.independentEngineers} onChange={(v) => set('independentEngineers', v)} yes="On: they can sign up and get jobs" no="Off: no sign-up, no new jobs (existing ones can still log in to finish jobs and settle their wallet)" />
+          </div>
           <Num label="Report-a-problem window (days after the visit)" value={p.disputeWindowDays} onChange={(v) => set('disputeWindowDays', v)} />
           <Num label="Minimum withdrawal (₹, engineers & service companies)" value={p.minWithdrawal} onChange={(v) => set('minWithdrawal', v)} />
           <Num label="Repeat visit free within (days)" value={p.repeatVisitDays} onChange={(v) => set('repeatVisitDays', v)} />

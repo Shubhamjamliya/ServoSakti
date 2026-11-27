@@ -5,7 +5,7 @@ const ref = (r) => ({ type: Schema.Types.ObjectId, ref: r });
 // Every rupee a customer pays: Razorpay orders, cash collected by engineers, and their refunds.
 const schema = new Schema({
   customerId: { ...ref('Customer'), index: true },
-  purpose: { type: String, enum: ['booking', 'bill', 'plan', 'cancellation'], required: true },
+  purpose: { type: String, enum: ['booking', 'bill', 'plan', 'cancellation', 'wallet_topup'], required: true },
   serviceRequestId: { ...ref('ServiceRequest'), index: true }, subscriptionId: ref('PlanSubscription'),
   amount: { type: Number, required: true }, // rupees
   currency: { type: String, default: 'INR' },

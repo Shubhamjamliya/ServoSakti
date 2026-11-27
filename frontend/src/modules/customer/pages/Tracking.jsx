@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import { CalendarDays, ChevronDown, ClipboardList, KeyRound, MapPin, Star, Wrench } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import { BackButton } from '@/shared/components/Mobile';
@@ -8,6 +9,7 @@ import { useToast } from '@/shared/context/ToastContext';
 import { cn, inr } from '@/shared/lib/utils';
 import { fmtDate, fmtDateTime } from '@/shared/lib/format';
 import { payWith } from '@/shared/lib/razorpay';
+import { getSession } from '@/shared/constants/authRoles';
 import BillView, { CoverageBadge } from '@/shared/components/BillView';
 import { ENDED, customerAction, isActive } from '../srStatus.js';
 import { EndedNote, EngineerRow, SrPill, StepBar, Timeline } from '../components/SrParts.jsx';
@@ -187,6 +189,13 @@ export default function Tracking() {
   const active = (data?.items || []).filter(isActive);
   const [openId, setOpenId] = useState(null);
   const expanded = openId ?? (focus || active[0]?._id); // tapped card, else the one linked from Home, else the first
+
+  // the closure OTP (and other job updates) appear without a manual refresh
+  useEffect(() => {
+    const socket = io('/', { auth: { token: getSession('customer').token } });
+    socket.on('notification', reload);
+    return () => socket.disconnect();
+  }, [reload]);
 
   useEffect(() => {
     if (focus && active.length) document.getElementById(focus)?.scrollIntoView({ behavior: 'smooth', block: 'start' });

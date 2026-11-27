@@ -8,6 +8,7 @@ router.get('/txns', allow('admin', 'engineer', 'vendor_owner', 'customer'), ctrl
 router.get('/', allow('admin'), ctrl.list);
 router.put('/bank', allow('engineer', 'vendor_owner'), ctrl.setBank);
 router.post('/adjust', allow('admin'), ctrl.adjust);
+router.post('/topup', allow('customer'), ctrl.topup);
 
 router.get('/withdrawals', allow('admin', 'engineer', 'vendor_owner'), ctrl.listWithdrawals);
 router.post('/withdrawals', allow('engineer', 'vendor_owner'), ctrl.requestWithdrawal);

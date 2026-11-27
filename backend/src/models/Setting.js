@@ -67,6 +67,7 @@ const schema = new Schema({
     lateArrivalMinutes: { type: Number, default: 60 },
     cashLimit: { type: Number, default: 10000 }, // engineers holding more cash than this get no new jobs
     disputesEnabled: { type: Boolean, default: true }, // customers can report a problem after a visit
+    independentEngineers: { type: Boolean, default: true }, // engineers without a service company: self sign-up + new jobs
     disputeWindowDays: { type: Number, default: 7 },
     minWithdrawal: { type: Number, default: 500 }, // ₹, engineers and service companies
     repeatVisitDays: { type: Number, default: 30 },

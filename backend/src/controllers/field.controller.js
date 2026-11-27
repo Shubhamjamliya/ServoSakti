@@ -194,12 +194,17 @@ exports.report = asyncHandler(async (req, res) => {
   res.json(await FieldReport.findOne({ serviceRequestId: sr._id }).lean());
 });
 
-/** Generates a 4-digit closure OTP for the customer, texted to their phone (always 1234 while USE_DEFAULT_OTP=true) and shown in their app. */
+/**
+ * Closure OTP for the customer: one random 4-digit code, the same on their tracking page, in the push notification and
+ * in the SMS (texted only when USE_DEFAULT_OTP is off). A resend keeps the unexpired code so earlier messages stay valid.
+ * The engineer never sees it; they get it from the customer.
+ */
 exports.sendOtp = asyncHandler(async (req, res) => {
   const sr = await myJob(req);
   if (sr.status !== 'in_progress') throw new ApiError(409, 'Job is not in progress');
   const useDefault = process.env.USE_DEFAULT_OTP === 'true';
-  const code = useDefault ? '1234' : String(crypto.randomInt(1000, 10000));
+  const current = sr.otp?.code && !sr.otp.verified && sr.otp.expiresAt > new Date() ? sr.otp.code : null;
+  const code = current || String(crypto.randomInt(1000, 10000));
   sr.otp = { code, expiresAt: new Date(Date.now() + 15 * 60000), verified: false };
   await sr.save();
   if (!useDefault && sr.customerPhone) {
@@ -209,7 +214,7 @@ exports.sendOtp = asyncHandler(async (req, res) => {
     const cust = await Customer.findById(sr.customerId).lean();
     if (cust) await notify([cust._id], 'Service completion OTP', `Share OTP ${code} with the engineer to confirm service ${sr.srNumber}`, 'otp');
   }
-  res.json({ sent: true, ...(useDefault || process.env.NODE_ENV !== 'production' ? { devOtp: code } : {}) });
+  res.json({ sent: true });
 });
 
 exports.verifyOtp = asyncHandler(async (req, res) => {

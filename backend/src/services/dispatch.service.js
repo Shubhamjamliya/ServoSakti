@@ -63,7 +63,10 @@ async function buildQueue(sr, settings) {
   if (sr.vendorId) {
     (await Engineer.find({ ...base, companyId: sr.vendorId }).lean()).filter(eligible).sort(byLoad).forEach((e) => push('engineer', e, 1));
   }
-  (await Engineer.find({ ...base, engineerType: 'independent' }).lean()).filter(eligible).sort(byLoad).forEach((e) => push('engineer', e, 2));
+  // independent engineers get calls only while the admin allows them
+  if (settings.pricing?.independentEngineers !== false) {
+    (await Engineer.find({ ...base, engineerType: 'independent' }).lean()).filter(eligible).sort(byLoad).forEach((e) => push('engineer', e, 2));
+  }
 
   const auths = await Authorization.find({ oemId: sr.oemId, status: 'active' }).lean();
   const approvedDocs = await Vendor.find({ _id: { $in: auths.map((a) => a.vendorId) }, status: 'approved' }).select('_id serviceZones').lean();

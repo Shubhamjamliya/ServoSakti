@@ -30,7 +30,7 @@ exports.branding = asyncHandler(async (req, res) => {
   res.json({
     companyName: b.companyName, appTagline: b.appTagline || '', customerHome: setting.customerHome, ...Object.fromEntries(LOGO_FIELDS.map((f) => [f, b[f]])),
     // customer-facing rules the apps need before login (no secrets)
-    rules: { disputesEnabled: setting.pricing?.disputesEnabled !== false, disputeWindowDays: setting.pricing?.disputeWindowDays ?? 7 },
+    rules: { disputesEnabled: setting.pricing?.disputesEnabled !== false, disputeWindowDays: setting.pricing?.disputeWindowDays ?? 7, independentEngineers: setting.pricing?.independentEngineers !== false },
   });
 });
 

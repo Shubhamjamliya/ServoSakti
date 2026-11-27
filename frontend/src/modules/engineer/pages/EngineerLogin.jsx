@@ -5,6 +5,7 @@ import { useAuth } from '@/shared/context/AuthContext';
 import { api } from '@/shared/lib/api';
 import { cn } from '@/shared/lib/utils';
 import { MOBILE_THEME } from '@/shared/layout/mobileTheme';
+import { useBranding } from '@/shared/lib/useBranding';
 
 const OTP_LENGTH = 4;
 const list = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
@@ -35,10 +36,10 @@ function IconInput({ icon: Icon, label, ...props }) {
 export default function EngineerLogin() {
   const { user, verifyOtp } = useAuth();
   const nav = useNavigate();
-  const [step, setStep] = useState('phone'); // phone | otp | onboarding | done
+  const [step, setStep] = useState('phone'); // phone | otp | onboarding | closed | done
+  const branding = useBranding();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(''));
-  const [devOtp, setDevOtp] = useState(false);
   const [signupToken, setSignupToken] = useState(null);
   const [f, setF] = useState({ name: '', email: '', city: '', brands: '', areas: '', skills: '' });
   const [done, setDone] = useState('');
@@ -64,7 +65,6 @@ export default function EngineerLogin() {
     setError('');
     try {
       const res = await api('/auth/send-otp', { method: 'POST', body: { role: 'engineer', phone } });
-      setDevOtp(!!res.defaultOtp);
       setOtp(Array(OTP_LENGTH).fill(''));
       setStep('otp');
       setResendTimer(30);
@@ -78,7 +78,7 @@ export default function EngineerLogin() {
     setError('');
     try {
       const res = await verifyOtp('engineer', phone, code);
-      if (res?.isNew) { setSignupToken(res.signupToken); setStep('onboarding'); } else nav('/engineer/home', { replace: true });
+      if (res?.isNew) { setSignupToken(res.signupToken); setStep(branding?.rules?.independentEngineers === false ? 'closed' : 'onboarding'); } else nav('/engineer/home', { replace: true });
     } catch (err) {
       setError(err.message || 'Invalid code. Please try again.');
       setOtp(Array(OTP_LENGTH).fill(''));
@@ -179,7 +179,6 @@ export default function EngineerLogin() {
                   <h2 className="text-[20px] font-extrabold tracking-tight text-[#0f172a] sm:text-[22px]">Verify OTP</h2>
                   <p className="mt-0.5 text-[12px] text-[#64748b]">Enter the {OTP_LENGTH}-digit code sent to <strong className="text-[#0f172a]">+91 {phone}</strong></p>
                 </div>
-                {devOtp && <p className="rounded-lg bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">Dev mode: OTP is <b>1234</b></p>}
                 <div className="flex justify-between gap-2 pt-0.5">
                   {otp.map((digit, index) => (
                     <input
@@ -226,6 +225,14 @@ export default function EngineerLogin() {
                 </button>
                 <button type="button" onClick={restart} className="w-full text-center text-[12px] font-semibold text-[#1456d8] hover:underline">Use a different number</button>
               </form>
+            )}
+
+            {step === 'closed' && (
+              <div className="space-y-3 py-2 text-center">
+                <h2 className="text-[19px] font-extrabold text-[#0f172a]">Number not registered</h2>
+                <p className="text-[12.5px] text-[#475467]">+91 {phone} is not linked to any engineer profile. Ask your service company to add you from their panel, then log in with this number.</p>
+                <button type="button" onClick={restart} className="w-full text-center text-[12.5px] font-semibold text-[#1456d8] hover:underline">Use a different number</button>
+              </div>
             )}
 
             {step === 'done' && (

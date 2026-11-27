@@ -75,6 +75,11 @@ async function markPaid(payment, razorpayPaymentId) {
 
 async function onPaid(payment) {
   if (payment.purpose === 'plan') return require('./plan.service').activate(payment.subscriptionId, payment);
+  if (payment.purpose === 'wallet_topup') {
+    // keyed on the payment, so the browser callback and the webhook can never credit it twice
+    await wallets.post([{ ownerType: 'customer', ownerId: payment.customerId, direction: 'credit', amount: payment.amount, kind: 'topup', key: `topup:${payment._id}`, refType: 'Payment', refId: payment._id, note: 'Added via Razorpay' }]);
+    return notify([payment.customerId], 'Money added to wallet', `₹${payment.amount} added to your wallet`, 'wallet');
+  }
   if (!payment.serviceRequestId) return null;
   const sr = await ServiceRequest.findById(payment.serviceRequestId);
   if (!sr) return null;
